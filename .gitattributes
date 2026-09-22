@@ -1,0 +1,9 @@
+# No Git LFS is used in this repository.
+# Model weights, caches and large CSVs are committed as plain files so that a
+# single `git clone` yields a fully runnable package with no extra `git lfs pull`.
+# The largest tracked file is 68 MB, below GitHub's 100 MB per-file limit.
+#
+# Line-ending normalization is deliberately NOT applied: MANIFEST.sha256 records
+# SHA-256 digests of working-tree bytes, so any CRLF conversion would break the
+# package's own integrity check. All text files are checked out byte-exact.
+* -text
