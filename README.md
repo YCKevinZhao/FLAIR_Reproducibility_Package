@@ -1,6 +1,9 @@
 # FLAIR reproducibility package
 
-Version 5. Reliability workflows use MLP models only.
+Version 5. Reliability workflows.
+
+**Google Colab:** [Open in Colab](https://colab.research.google.com/drive/1mXn-YjMucoitroASAMLw1EJZrgW94WL2?usp=sharing)  
+**Model Checkpoints:** [Download checkpoints](https://github.com/YCKevinZhao/OnlineModel-Predict)
 
 This package contains source code, source datasets, fixed main-model data splits, and seven default runtime weight files for the FLAIR manuscript. It omits generated results, deployment caches, training logs, and historical experiment weights. Colab supplies the separate result artifacts needed for historical comparisons.
 
