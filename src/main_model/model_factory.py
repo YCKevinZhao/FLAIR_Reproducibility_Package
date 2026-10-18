@@ -14,9 +14,6 @@ from define import FlexibleTransformerEncoder, FlexibleGATEncoder
 from early_stopping import EarlyStopping
 
 
-
-
-
 def get_preferred_device(explicit_device: str | torch.device | None = None) -> torch.device:
     if explicit_device is not None:
         return torch.device(explicit_device)
@@ -40,9 +37,6 @@ def ensure_same_device(*modules) -> torch.device:
         if d != first:
             raise RuntimeError(f" device ： 0  {first}， {i}  {d}")
     return first
-
-
-
 
 
 class SoluteSolventSelfAttentionFusion(nn.Module):
@@ -90,8 +84,6 @@ class SoluteSolventSelfAttentionFusion(nn.Module):
                 f"attention_heads={self.attention_heads} 。"
             )
 
-        
-        
         if self.output_mode in {"flatten", "flat"}:
             self.output_mode = "cls"
         if self.output_mode not in {"cls", "mean", "masked_mean"}:
@@ -112,7 +104,6 @@ class SoluteSolventSelfAttentionFusion(nn.Module):
             nn.ReLU(),
         )
 
-        
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.attention_dim))
         self.solute_type_embedding = nn.Parameter(torch.zeros(1, 1, self.attention_dim))
         self.solvent_type_embedding = nn.Parameter(torch.zeros(1, 1, self.attention_dim))
@@ -145,7 +136,7 @@ class SoluteSolventSelfAttentionFusion(nn.Module):
 
     @staticmethod
     def _masked_mean(tokens: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        
+
         mask_f = mask.to(device=tokens.device, dtype=tokens.dtype).unsqueeze(-1)
         denom = mask_f.sum(dim=1).clamp(min=1.0)
         return (tokens * mask_f).sum(dim=1) / denom
@@ -195,12 +186,13 @@ class SoluteSolventSelfAttentionFusion(nn.Module):
         mask = torch.cat([solute_mask, solvent_mask], dim=1)
 
         if self.output_mode == "cls":
-            cls = self.cls_token.to(device=tokens.device, dtype=tokens.dtype).expand(tokens.size(0), -1, -1)
+            cls = self.cls_token.to(device=tokens.device, dtype=tokens.dtype).expand(
+                tokens.size(0), -1, -1
+            )
             cls_mask = torch.ones((tokens.size(0), 1), dtype=torch.bool, device=mask.device)
             tokens = torch.cat([cls, tokens], dim=1)
             mask = torch.cat([cls_mask, mask], dim=1)
 
-        
         tokens = self.encoder(tokens, src_key_padding_mask=~mask)
 
         if self.output_mode == "cls":
@@ -269,7 +261,11 @@ class TokenSelfAttentionGraphReadoutEncoder(nn.Module):
         )
         self.readout_encoder = nn.TransformerEncoder(layer, num_layers=self.attention_layers)
         self.out_norm = nn.LayerNorm(self.token_dim)
-        self.out_proj = nn.Linear(self.token_dim, self.graph_dim) if self.graph_dim != self.token_dim else nn.Identity()
+        self.out_proj = (
+            nn.Linear(self.token_dim, self.graph_dim)
+            if self.graph_dim != self.token_dim
+            else nn.Identity()
+        )
 
     def forward(
         self,
@@ -280,8 +276,7 @@ class TokenSelfAttentionGraphReadoutEncoder(nn.Module):
         edge_attr=None,
         return_node_embeddings: bool = False,
     ):
-        
-        
+
         _, node_emb = self.graph_encoder(
             data=data,
             x=x,
@@ -298,9 +293,7 @@ class TokenSelfAttentionGraphReadoutEncoder(nn.Module):
         batch = batch.long().view(-1).to(node_emb.device)
 
         if node_emb.size(0) != batch.numel():
-            raise ValueError(
-                f"node_emb  batch ：{node_emb.size(0)} vs {batch.numel()}"
-            )
+            raise ValueError(f"node_emb  batch ：{node_emb.size(0)} vs {batch.numel()}")
 
         dense_tokens, mask = to_dense_batch(node_emb, batch)
         cls = self.cls_token.to(device=dense_tokens.device, dtype=dense_tokens.dtype).expand(
@@ -317,9 +310,6 @@ class TokenSelfAttentionGraphReadoutEncoder(nn.Module):
         if return_node_embeddings:
             return graph_emb, node_emb
         return graph_emb
-
-
-
 
 
 def _infer_solvent_feat_dim(sample_batch) -> int:
@@ -339,9 +329,6 @@ def _infer_solvent_graph_in_dim(sample_batch) -> int:
     if not hasattr(sample_batch, "solvent_x"):
         raise ValueError("sample_batch  solvent_x，。")
     return int(sample_batch.solvent_x.size(1))
-
-
-
 
 
 def _safe_torch_load(path: str | Path, map_location: torch.device):
@@ -375,11 +362,13 @@ def _extract_state_dict(obj) -> Dict[str, torch.Tensor]:
     raise ValueError(" .pth  state_dict，。")
 
 
-def _strip_prefix_if_present(state_dict: Dict[str, torch.Tensor], prefix: str) -> Dict[str, torch.Tensor]:
+def _strip_prefix_if_present(
+    state_dict: Dict[str, torch.Tensor], prefix: str
+) -> Dict[str, torch.Tensor]:
     out: Dict[str, torch.Tensor] = {}
     for k, v in state_dict.items():
         if k.startswith(prefix):
-            out[k[len(prefix):]] = v
+            out[k[len(prefix) :]] = v
         else:
             out[k] = v
     return out
@@ -406,7 +395,9 @@ def _make_state_dict_candidates(state_dict: Dict[str, torch.Tensor]):
     return unique
 
 
-def _load_more_encoder_weights(model: nn.Module, weight_path: str | Path, device: torch.device) -> None:
+def _load_more_encoder_weights(
+    model: nn.Module, weight_path: str | Path, device: torch.device
+) -> None:
     obj = _safe_torch_load(weight_path, map_location=device)
     raw_state_dict = _extract_state_dict(obj)
 
@@ -517,9 +508,7 @@ class OnlineMOREGraphEncoder(nn.Module):
         if n < 0:
             raise ValueError(f"MORE_UNFROZEN_LAYERS  >= 0， {n}")
         if n > self.num_layer:
-            raise ValueError(
-                f"MORE_UNFROZEN_LAYERS={n}  MORE_NUM_LAYER={self.num_layer}"
-            )
+            raise ValueError(f"MORE_UNFROZEN_LAYERS={n}  MORE_NUM_LAYER={self.num_layer}")
         return n
 
     @staticmethod
@@ -536,7 +525,6 @@ class OnlineMOREGraphEncoder(nn.Module):
 
         start_layer = self.num_layer - self.unfrozen_layers
 
-        
         if self.unfrozen_layers == self.num_layer:
             self._set_module_requires_grad(self.more_encoder, True)
             return
@@ -564,7 +552,7 @@ class OnlineMOREGraphEncoder(nn.Module):
 
     def train(self, mode: bool = True):
         super().train(mode)
-        
+
         self._apply_training_mode_policy(mode)
         return self
 
@@ -576,7 +564,11 @@ class OnlineMOREGraphEncoder(nn.Module):
         return global_mean_pool(node_rep, batch)
 
     def forward(self, data, return_node_embeddings: bool = False):
-        if not hasattr(data, "more_x") or not hasattr(data, "more_edge_index") or not hasattr(data, "more_edge_attr"):
+        if (
+            not hasattr(data, "more_x")
+            or not hasattr(data, "more_edge_index")
+            or not hasattr(data, "more_edge_attr")
+        ):
             raise ValueError(
                 "batch  more_x / more_edge_index / more_edge_attr。"
                 " data_loading.py， MORE.pth  MORE 。"
@@ -591,9 +583,7 @@ class OnlineMOREGraphEncoder(nn.Module):
         batch = data.batch.to(device=device, non_blocking=True)
 
         if x.size(0) != batch.numel():
-            raise ValueError(
-                f"MORE  batch ：more_x={x.size(0)}, batch={batch.numel()}。"
-            )
+            raise ValueError(f"MORE  batch ：more_x={x.size(0)}, batch={batch.numel()}。")
 
         if self.unfrozen_layers <= 0:
             with torch.no_grad():
@@ -652,7 +642,9 @@ class GraphTransformerOnlineMOREAdapterGTConcatEncoder(nn.Module):
         more_vec = self.more_encoder(data)
 
         if more_vec.device != graph_vec.device or more_vec.dtype != graph_vec.dtype:
-            more_vec = more_vec.to(device=graph_vec.device, dtype=graph_vec.dtype, non_blocking=True)
+            more_vec = more_vec.to(
+                device=graph_vec.device, dtype=graph_vec.dtype, non_blocking=True
+            )
 
         adapter_vec = self.more_adapter(more_vec)
         out = torch.cat([adapter_vec, graph_vec], dim=-1)
@@ -660,9 +652,6 @@ class GraphTransformerOnlineMOREAdapterGTConcatEncoder(nn.Module):
         if return_node_embeddings:
             return out, node_emb
         return out
-
-
-
 
 
 def _build_scheduler(optimizer: torch.optim.Optimizer, cfg):
@@ -692,12 +681,7 @@ def _build_scheduler(optimizer: torch.optim.Optimizer, cfg):
         )
         return scheduler, monitor
 
-    raise ValueError(
-        f" LR scheduler: {scheduler_name!r}。 'ReduceLROnPlateau'。"
-    )
-
-
-
+    raise ValueError(f" LR scheduler: {scheduler_name!r}。 'ReduceLROnPlateau'。")
 
 
 def _build_graph_transformer_encoder(sample_batch, cfg) -> tuple[FlexibleTransformerEncoder, int]:
@@ -709,11 +693,17 @@ def _build_graph_transformer_encoder(sample_batch, cfg) -> tuple[FlexibleTransfo
     mol_encoder = FlexibleTransformerEncoder(
         in_dim=in_dim_mol,
         hidden_dims=cfg.GRAPH_TRANSFORMER_HIDDEN,
-        num_layers=cfg.GRAPH_TRANSFORMER_LAYERS if isinstance(cfg.GRAPH_TRANSFORMER_HIDDEN, int) else None,
+        num_layers=(
+            cfg.GRAPH_TRANSFORMER_LAYERS if isinstance(cfg.GRAPH_TRANSFORMER_HIDDEN, int) else None
+        ),
         out_dim=cfg.GRAPH_TRANSFORMER_OUT,
         heads=cfg.GRAPH_TRANSFORMER_HEADS,
         concat=True,
-        edge_dim=cfg.GRAPH_TRANSFORMER_EDGE_DIM if getattr(cfg, "GRAPH_TRANSFORMER_USE_EDGE_ATTR", True) else None,
+        edge_dim=(
+            cfg.GRAPH_TRANSFORMER_EDGE_DIM
+            if getattr(cfg, "GRAPH_TRANSFORMER_USE_EDGE_ATTR", True)
+            else None
+        ),
         dropout=cfg.GRAPH_TRANSFORMER_DROPOUT,
         activation="relu",
         use_bn=True,
@@ -723,13 +713,24 @@ def _build_graph_transformer_encoder(sample_batch, cfg) -> tuple[FlexibleTransfo
     ).to(cfg.DEVICE)
 
     readout_type = str(getattr(cfg, "GRAPH_TRANSFORMER_READOUT", "attention")).strip().lower()
-    if readout_type in {"self_attention", "self-attention", "selfattention", "token_self_attention", "token-level-self-attention", "cls"}:
+    if readout_type in {
+        "self_attention",
+        "self-attention",
+        "selfattention",
+        "token_self_attention",
+        "token-level-self-attention",
+        "cls",
+    }:
         mol_encoder = TokenSelfAttentionGraphReadoutEncoder(
             graph_encoder=mol_encoder,
-            attention_heads=int(getattr(cfg, "GRAPH_TRANSFORMER_READOUT_HEADS", cfg.GRAPH_TRANSFORMER_HEADS)),
+            attention_heads=int(
+                getattr(cfg, "GRAPH_TRANSFORMER_READOUT_HEADS", cfg.GRAPH_TRANSFORMER_HEADS)
+            ),
             attention_layers=int(getattr(cfg, "GRAPH_TRANSFORMER_READOUT_LAYERS", 1)),
             ffn_dim=getattr(cfg, "GRAPH_TRANSFORMER_READOUT_FFN_DIM", None),
-            dropout=float(getattr(cfg, "GRAPH_TRANSFORMER_READOUT_DROPOUT", cfg.GRAPH_TRANSFORMER_DROPOUT)),
+            dropout=float(
+                getattr(cfg, "GRAPH_TRANSFORMER_READOUT_DROPOUT", cfg.GRAPH_TRANSFORMER_DROPOUT)
+            ),
         ).to(cfg.DEVICE)
     elif readout_type not in {"attention", "mean"}:
         raise ValueError(
@@ -747,8 +748,6 @@ def _normalize_solute_encoder_type(raw_type: str) -> str:
         "transformer": "graph_transformer",
         "graphtransformer": "graph_transformer",
         "graph-transformer": "graph_transformer",
-
-        
         "graph_transformer_more_online_ln_adapter_gt_concat": "graph_transformer_more_online_ln_adapter_gt_concat",
         "graph_transformer_online_more_ln_adapter_gt_concat": "graph_transformer_more_online_ln_adapter_gt_concat",
         "online_more_ln_adapter_gt_concat": "graph_transformer_more_online_ln_adapter_gt_concat",
@@ -772,13 +771,10 @@ def _build_mol_encoder(sample_batch, cfg):
     raw_encoder_type = getattr(cfg, "SOLUTE_ENCODER_TYPE", "graph_transformer")
     encoder_type = _normalize_solute_encoder_type(raw_encoder_type)
 
-    
     if encoder_type == "graph_transformer":
         graph_encoder, in_dim_mol = _build_graph_transformer_encoder(sample_batch, cfg)
         return graph_encoder, in_dim_mol
 
-    
-    
     if encoder_type == "graph_transformer_more_online_ln_adapter_gt_concat":
         graph_encoder, in_dim_mol = _build_graph_transformer_encoder(sample_batch, cfg)
         more_weight_path = getattr(cfg, "MORE_WEIGHT_PATH", None)
@@ -813,9 +809,6 @@ def _build_mol_encoder(sample_batch, cfg):
     )
 
 
-
-
-
 def _build_solvent_graph_encoder(sample_batch, cfg):
     in_dim_solvent = _infer_solvent_graph_in_dim(sample_batch)
     encoder_type = str(getattr(cfg, "SOLVENT_GRAPH_ENCODER_TYPE", "transformer")).strip().lower()
@@ -824,11 +817,19 @@ def _build_solvent_graph_encoder(sample_batch, cfg):
         sol_encoder = FlexibleTransformerEncoder(
             in_dim=in_dim_solvent,
             hidden_dims=cfg.SOLVENT_GRAPH_TRANSFORMER_HIDDEN,
-            num_layers=cfg.SOLVENT_GRAPH_TRANSFORMER_LAYERS if isinstance(cfg.SOLVENT_GRAPH_TRANSFORMER_HIDDEN, int) else None,
+            num_layers=(
+                cfg.SOLVENT_GRAPH_TRANSFORMER_LAYERS
+                if isinstance(cfg.SOLVENT_GRAPH_TRANSFORMER_HIDDEN, int)
+                else None
+            ),
             out_dim=cfg.SOLVENT_GRAPH_TRANSFORMER_OUT,
             heads=cfg.SOLVENT_GRAPH_TRANSFORMER_HEADS,
             concat=True,
-            edge_dim=cfg.SOLVENT_GRAPH_TRANSFORMER_EDGE_DIM if getattr(cfg, "SOLVENT_GRAPH_TRANSFORMER_USE_EDGE_ATTR", True) else None,
+            edge_dim=(
+                cfg.SOLVENT_GRAPH_TRANSFORMER_EDGE_DIM
+                if getattr(cfg, "SOLVENT_GRAPH_TRANSFORMER_USE_EDGE_ATTR", True)
+                else None
+            ),
             dropout=cfg.SOLVENT_GRAPH_TRANSFORMER_DROPOUT,
             activation="relu",
             use_bn=True,
@@ -853,10 +854,7 @@ def _build_solvent_graph_encoder(sample_batch, cfg):
         ).to(cfg.DEVICE)
         return sol_encoder, sol_encoder.graph_dim, False
 
-    raise ValueError(
-        f" SOLVENT_GRAPH_ENCODER_TYPE: {encoder_type!r}。 'gat'  'transformer'。"
-    )
-
+    raise ValueError(f" SOLVENT_GRAPH_ENCODER_TYPE: {encoder_type!r}。 'gat'  'transformer'。")
 
 
 def _infer_node_dim_from_encoder(encoder, encoder_name: str) -> int:
@@ -865,27 +863,27 @@ def _infer_node_dim_from_encoder(encoder, encoder_name: str) -> int:
     hidden_dims = getattr(base, "hidden_dims", None)
     if hidden_dims is None or len(hidden_dims) == 0:
         raise ValueError(
-            f"{encoder_name}  token-level Self-Attention："
-            " hidden_dims  node token 。"
+            f"{encoder_name}  token-level Self-Attention：" " hidden_dims  node token 。"
         )
     return int(hidden_dims[-1])
-
-
-
 
 
 def build_system(sample_batch, cfg) -> SimpleNamespace:
     mol_encoder, in_dim_mol = _build_mol_encoder(sample_batch, cfg)
 
     graph_encoder_type = getattr(cfg, "SOLVENT_GRAPH_ENCODER_TYPE", None)
-    graph_encoder_type = None if graph_encoder_type is None else str(graph_encoder_type).strip().lower()
+    graph_encoder_type = (
+        None if graph_encoder_type is None else str(graph_encoder_type).strip().lower()
+    )
 
     use_solvent_graph_encoder = graph_encoder_type not in {None, "", "none", "null", "false"}
 
     if use_solvent_graph_encoder:
-        sol_encoder, in_dim_sol, use_solvent_edge_attr = _build_solvent_graph_encoder(sample_batch, cfg)
+        sol_encoder, in_dim_sol, use_solvent_edge_attr = _build_solvent_graph_encoder(
+            sample_batch, cfg
+        )
     else:
-        
+
         in_dim_sol = _infer_solvent_feat_dim(sample_batch)
         sol_encoder = nn.Identity().to(cfg.DEVICE)
         use_solvent_edge_attr = False
@@ -920,7 +918,6 @@ def build_system(sample_batch, cfg) -> SimpleNamespace:
             output_mode=str(getattr(cfg, "FUSION_OUTPUT_MODE", "mean")),
         ).to(cfg.DEVICE)
 
-        
         mlp_input_dim = int(mol_encoder.graph_dim) + int(in_dim_sol) + int(fusion_encoder.out_dim)
     else:
         if raw_fusion_type not in {"concat", "cat", "none", ""}:
@@ -947,7 +944,6 @@ def build_system(sample_batch, cfg) -> SimpleNamespace:
     if use_fusion_self_attention:
         modules_for_device.append(fusion_encoder)
 
-    
     modules_for_device = [m.to(cfg.DEVICE) for m in modules_for_device]
     mol_encoder = modules_for_device[0]
     mlp = modules_for_device[1]
@@ -999,7 +995,9 @@ def build_system(sample_batch, cfg) -> SimpleNamespace:
         mlp_input_dim=mlp_input_dim,
         fusion_type=raw_fusion_type,
         use_fusion_self_attention=use_fusion_self_attention,
-        fusion_output_dim=int(getattr(fusion_encoder, "out_dim", 0)) if use_fusion_self_attention else 0,
+        fusion_output_dim=(
+            int(getattr(fusion_encoder, "out_dim", 0)) if use_fusion_self_attention else 0
+        ),
         use_solvent_graph_encoder=use_solvent_graph_encoder,
         use_solvent_edge_attr=use_solvent_edge_attr,
     )

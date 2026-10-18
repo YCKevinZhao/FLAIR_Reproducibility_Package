@@ -1,32 +1,63 @@
 from __future__ import annotations
 
+
 import argparse
+
+
 import hashlib
+
+
 import json
+
+
 import os
+
+
 import pickle
+
+
 import tempfile
+
+
 import warnings
+
+
 from pathlib import Path
+
+
 from typing import Dict, List
 
+
 os.environ.setdefault("PYTHONWARNINGS", "ignore")
+
+
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+
+
 os.environ.setdefault("MKL_NUM_THREADS", "1")
+
+
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+
 
 warnings.simplefilter("ignore")
 
+
 import numpy as np
+
+
 import pandas as pd
+
+
 import config
-from main_model_inference import (
-    MyPredictionModel,
-    auto_dataset_paths,
-    log,
-    predict_csv_with_checkpoint,
-)
+
+
+from ae_from_pt import MyPredictionModel, auto_dataset_paths, log, predict_csv_with_checkpoint
+
+
 from data_utils import (
     build_solvent_tanimoto_reference,
     build_unique_tanimoto_reference,
@@ -40,10 +71,13 @@ from data_utils import (
     standardize_columns,
     tanimoto_neighborhood_features,
 )
-from log_mlp_reliability import load_log_mlp_bundle
-from log_mlp_reliability import predict_pre_ae as predict_log_mlp_pre_ae
+
+
+from log_mlp_reliability import load_log_mlp_bundle, predict_pre_ae as predict_log_mlp_pre_ae
+
 
 import importlib
+
 
 offline = importlib.import_module("01_generate_offline_features")
 
@@ -63,20 +97,40 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Predict Abs/Emi/Plqy/Em and numeric pre_AE for one solute/solvent pair."
     )
-    parser.add_argument("--smiles", default=None, help="Solute SMILES. If omitted, the script will ask interactively.")
-    parser.add_argument("--solvent", default=None, help="Solvent SMILES. If omitted, the script will ask interactively.")
+    parser.add_argument(
+        "--smiles",
+        default=None,
+        help="Solute SMILES. If omitted, the script will ask interactively.",
+    )
+    parser.add_argument(
+        "--solvent",
+        default=None,
+        help="Solvent SMILES. If omitted, the script will ask interactively.",
+    )
     parser.add_argument("--split", choices=["random", "scaffold", "ae"], default="ae")
     parser.add_argument("--best_dir", default="../../models/main_model")
     parser.add_argument(
         "--ae_model",
         default="../../models/reliability_model/mlp_log_hpo100_reliability_model_bundle.pt",
-        help="v3 Log-MLP Reliability checkpoint (.pt).",
+        help="Reliability model path (.pt Log-MLP bundle).",
     )
-    parser.add_argument("--offline_csv", default=None, help="Offline AE feature CSV used to build kNN error cache.")
-    parser.add_argument("--deploy_cache", default=None, help="Deployment cache path. Created automatically if missing.")
+    parser.add_argument(
+        "--offline_csv", default=None, help="Offline AE feature CSV used to build kNN error cache."
+    )
+    parser.add_argument(
+        "--deploy_cache",
+        default=None,
+        help="Deployment cache path. Created automatically if missing.",
+    )
     parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--rebuild_cache", action="store_true", help="Rebuild deployment cache even if it already exists.")
-    parser.add_argument("--build_cache_only", action="store_true", help="Only build deployment cache and exit.")
+    parser.add_argument(
+        "--rebuild_cache",
+        action="store_true",
+        help="Rebuild deployment cache even if it already exists.",
+    )
+    parser.add_argument(
+        "--build_cache_only", action="store_true", help="Only build deployment cache and exit."
+    )
     parser.add_argument("--json", action="store_true", help="Print compact JSON only.")
     return parser.parse_args()
 
@@ -146,13 +200,17 @@ def load_main_models(split: str, best_dir: str, batch_size: int):
     return loaded
 
 
-def predict_main_models(loaded_models: List[Dict], smiles: str, solvent: str, batch_size: int) -> pd.DataFrame:
+def predict_main_models(
+    loaded_models: List[Dict], smiles: str, solvent: str, batch_size: int
+) -> pd.DataFrame:
     query_csv = make_query_csv(smiles, solvent)
     rows = []
     try:
         for item in loaded_models:
             fold = item["fold"]
-            pred_df = predict_csv_with_checkpoint(item["model"], query_csv, output_csv=None, batch_size=batch_size)
+            pred_df = predict_csv_with_checkpoint(
+                item["model"], query_csv, output_csv=None, batch_size=batch_size
+            )
             row = {"fold": fold}
             for prop in PROPERTY_DISPLAY_ORDER:
                 row[prop] = float(pred_df.loc[0, f"pred_{prop}"])
@@ -179,9 +237,13 @@ def build_latest_rank_ensemble_cache(
     ref_df = standardize_columns(pd.read_csv(train_and_val_csv))
     ref_mols = [mol_from_smiles(smi) for smi in ref_df[config.SMILES_COLUMN].astype(str).tolist()]
     valid_mols = [mol for mol in ref_mols if mol is not None]
-    neighbor_smiles_column = "_canonical_smiles" if "_canonical_smiles" in ref_df.columns else config.SMILES_COLUMN
+    neighbor_smiles_column = (
+        "_canonical_smiles" if "_canonical_smiles" in ref_df.columns else config.SMILES_COLUMN
+    )
     ref_fps, ref_scaffolds = build_unique_tanimoto_reference(ref_df[neighbor_smiles_column])
-    solvent_tanimoto_reference = build_solvent_tanimoto_reference(ref_df[config.SOLVENT_COLUMN].tolist())
+    solvent_tanimoto_reference = build_solvent_tanimoto_reference(
+        ref_df[config.SOLVENT_COLUMN].tolist()
+    )
     scaffold_set = set()
     scaffold_fps = []
     train_and_val_scaffold_counts: Dict[str, int] = {}
@@ -209,7 +271,9 @@ def build_latest_rank_ensemble_cache(
                 raise ValueError(f"Column {column} is inconsistent across base-model rows.")
         grouped = df.groupby(keys, as_index=False, sort=False)
         sample = grouped[constant_columns].first()
-        prediction = grouped["base_prediction"].mean().rename(columns={"base_prediction": "base_prediction"})
+        prediction = (
+            grouped["base_prediction"].mean().rename(columns={"base_prediction": "base_prediction"})
+        )
         df = sample.merge(prediction, on=keys, how="left", validate="one_to_one")
         df["abs_error"] = np.abs(
             df["base_prediction"].to_numpy(dtype=float) - df["y_true"].to_numpy(dtype=float)
@@ -241,7 +305,9 @@ def build_latest_rank_ensemble_cache(
             max="max",
             std=lambda values: float(values.std(ddof=0)),
         )
-        scaffold_solvent_stats = sub.groupby(["_direct_scaffold", "solvent"])["abs_error"].agg(["count", "mean"])
+        scaffold_solvent_stats = sub.groupby(["_direct_scaffold", "solvent"])["abs_error"].agg(
+            ["count", "mean"]
+        )
         stats_by_property[prop] = {
             "global": global_stats,
             "scaffold": scaffold_stats,
@@ -249,9 +315,11 @@ def build_latest_rank_ensemble_cache(
         }
 
     return {
-        "version": "flair_v3_single_predict_cache",
+        "version": "single_predict_rank_ensemble_cache_v6",
         "base_prediction_type": (
-            "mean_of_5_base_models_before_ae_prediction" if ensemble_base else "individual_base_model"
+            "mean_of_5_base_models_before_ae_prediction"
+            if ensemble_base
+            else "individual_base_model"
         ),
         "offline_csv": str(offline_csv),
         "offline_csv_sha256": content_sha256(offline_csv),
@@ -286,7 +354,7 @@ def load_or_build_latest_rank_ensemble_cache(
         with open(deploy_cache_path, "rb") as f:
             cache = pickle.load(f)
         cache_matches_inputs = (
-            cache.get("version") == "flair_v3_single_predict_cache"
+            cache.get("version") == "single_predict_rank_ensemble_cache_v6"
             and cache.get("base_prediction_type") == expected_base_type
             and cache.get("offline_csv_sha256") == content_sha256(offline_csv)
             and cache.get("train_and_val_csv_sha256") == content_sha256(train_and_val_csv)
@@ -323,9 +391,17 @@ def latest_rank_ensemble_feature_row(
     scaffold = get_scaffold_smiles(mol)
     scaffold_count = float(reference["scaffold_counts"].get(scaffold, 0))
     row = {
-        "solute_max_tanimoto": max_tanimoto_to_train_set(mol, reference["mols"], reference["fps"]) if mol is not None else 0.0,
-        "solute_scaffold_novel": scaffold_novelty(mol, reference["scaffold_set"]) if mol is not None else 1.0,
-        "solute_scaffold_similarity": scaffold_similarity(mol, reference["scaffold_fps"]) if mol is not None else 0.0,
+        "solute_max_tanimoto": (
+            max_tanimoto_to_train_set(mol, reference["mols"], reference["fps"])
+            if mol is not None
+            else 0.0
+        ),
+        "solute_scaffold_novel": (
+            scaffold_novelty(mol, reference["scaffold_set"]) if mol is not None else 1.0
+        ),
+        "solute_scaffold_similarity": (
+            scaffold_similarity(mol, reference["scaffold_fps"]) if mol is not None else 0.0
+        ),
         "base_prediction": float(base_value),
         "solute_scaffold_in_train_and_val": 1.0 if scaffold_count > 0 else 0.0,
         "solute_scaffold_train_and_val_count": scaffold_count,
@@ -350,11 +426,17 @@ def latest_rank_ensemble_feature_row(
     scaffold_solvent_stats = stats["scaffold_solvent"]
     if scaffold in scaffold_stats.index:
         row["calibration_same_scaffold_count"] = float(scaffold_stats.loc[scaffold, "count"])
-        row["calibration_same_scaffold_mean_abs_error"] = float(scaffold_stats.loc[scaffold, "mean"])
-        row["calibration_same_scaffold_median_abs_error"] = float(scaffold_stats.loc[scaffold, "median"])
+        row["calibration_same_scaffold_mean_abs_error"] = float(
+            scaffold_stats.loc[scaffold, "mean"]
+        )
+        row["calibration_same_scaffold_median_abs_error"] = float(
+            scaffold_stats.loc[scaffold, "median"]
+        )
         row["calibration_same_scaffold_max_abs_error"] = float(scaffold_stats.loc[scaffold, "max"])
         std_error = float(scaffold_stats.loc[scaffold, "std"])
-        row["calibration_same_scaffold_std_abs_error"] = std_error if np.isfinite(std_error) else float(global_stats["std"])
+        row["calibration_same_scaffold_std_abs_error"] = (
+            std_error if np.isfinite(std_error) else float(global_stats["std"])
+        )
     else:
         row["calibration_same_scaffold_count"] = 0.0
         row["calibration_same_scaffold_mean_abs_error"] = float(global_stats["mean"])
@@ -364,8 +446,12 @@ def latest_rank_ensemble_feature_row(
 
     solvent_key = (scaffold, solvent)
     if solvent_key in scaffold_solvent_stats.index:
-        row["calibration_same_scaffold_solvent_count"] = float(scaffold_solvent_stats.loc[solvent_key, "count"])
-        row["calibration_same_scaffold_solvent_mean_abs_error"] = float(scaffold_solvent_stats.loc[solvent_key, "mean"])
+        row["calibration_same_scaffold_solvent_count"] = float(
+            scaffold_solvent_stats.loc[solvent_key, "count"]
+        )
+        row["calibration_same_scaffold_solvent_mean_abs_error"] = float(
+            scaffold_solvent_stats.loc[solvent_key, "mean"]
+        )
     else:
         row["calibration_same_scaffold_solvent_count"] = 0.0
         row["calibration_same_scaffold_solvent_mean_abs_error"] = float(global_stats["mean"])
@@ -377,70 +463,64 @@ def predict_single(args: argparse.Namespace) -> Dict:
     ae_model_path = resolve_path(args.ae_model)
     deploy_cache_path = resolve_path(
         args.deploy_cache,
-        "../../models/reliability_model/prediction_deploy_cache_solvent32.pkl",
+        "../../data/cache/prediction_deploy_cache_solvent32.pkl",
     )
     if not ae_model_path.exists():
-        raise FileNotFoundError(f"Missing v3 Reliability model: {ae_model_path}")
+        raise FileNotFoundError(f"Missing Reliability model: {ae_model_path}")
     if ae_model_path.suffix.lower() != ".pt":
-        raise ValueError("FLAIR v3 accepts only the Log-MLP .pt Reliability checkpoint.")
-
+        raise ValueError("This package supports Log-MLP .pt Reliability bundles only.")
     ae_bundle = load_log_mlp_bundle(ae_model_path)
-    base_prediction_type = str(ae_bundle.get("base_prediction_type", ""))
-    expected_base_type = "mean_of_5_base_models_before_ae_prediction"
-    if base_prediction_type != expected_base_type:
-        raise ValueError(
-            "The v3 Reliability checkpoint must use the mean of five Base predictions."
-        )
-
+    base_prediction_type = str(ae_bundle.get("base_prediction_type", "individual_base_model"))
+    ensemble_base = base_prediction_type == "mean_of_5_base_models_before_ae_prediction"
     offline_default = (
         ae_bundle.get("calibration_features_csv")
         or "../../results/intermediate/calibration_features_ae_pre.csv"
     )
     offline_csv = resolve_path(args.offline_csv, offline_default)
-    train_and_val_csv = root.parents[1] / "data/splits/deployment/deployment.csv"
+    train_and_val_csv = root.parents[1] / "data" / "splits" / "deployment" / "deployment.csv"
     deploy_cache = load_or_build_latest_rank_ensemble_cache(
         offline_csv=offline_csv,
         train_and_val_csv=train_and_val_csv,
         deploy_cache_path=deploy_cache_path,
         rebuild=args.rebuild_cache,
-        ensemble_base=True,
+        ensemble_base=ensemble_base,
     )
-
     if args.build_cache_only:
         return {
             "status": "cache_built",
-            "model_family": str(ae_bundle["model_family"]),
+            "split": args.split,
             "deploy_cache_path": str(deploy_cache_path),
+            "reference_cache_folds": len(deploy_cache.get("reference_infos", [])),
+            "knn_properties": sorted(deploy_cache.get("knn_by_property", {}).keys()),
+            "model_name": str(ae_bundle.get("model_name", "AE model")),
             "base_prediction_type": base_prediction_type,
         }
-
     loaded_main = load_main_models(args.split, args.best_dir, args.batch_size)
-    main_pred_df = predict_main_models(
-        loaded_main,
-        args.smiles,
-        args.solvent,
-        args.batch_size,
-    )
+    main_pred_df = predict_main_models(loaded_main, args.smiles, args.solvent, args.batch_size)
     output = {"smiles": args.smiles, "solvent": args.solvent, "properties": {}}
     for prop in PROPERTY_DISPLAY_ORDER:
         fold_values = main_pred_df[prop].to_numpy(dtype=float)
         pred_mean = float(np.mean(fold_values))
-        row = latest_rank_ensemble_feature_row(
-            smiles=args.smiles,
-            solvent=args.solvent,
-            prop=prop,
-            base_value=pred_mean,
-            fold_values=fold_values,
-            cache=deploy_cache,
-        )
-        feature_df = pd.DataFrame([row]).reindex(
-            columns=ae_bundle["feature_columns"],
-            fill_value=0.0,
-        )
-        predicted_ae = float(predict_log_mlp_pre_ae(ae_bundle, prop, feature_df)[0])
+        ae_values = []
+        feature_positions = [None] if ensemble_base else list(range(len(main_pred_df)))
+        for fold_pos in feature_positions:
+            base_value = pred_mean if fold_pos is None else float(main_pred_df.loc[fold_pos, prop])
+            row = latest_rank_ensemble_feature_row(
+                smiles=args.smiles,
+                solvent=args.solvent,
+                prop=prop,
+                base_value=base_value,
+                fold_values=fold_values,
+                cache=deploy_cache,
+            )
+            feature_df = pd.DataFrame([row]).reindex(
+                columns=ae_bundle["feature_columns"], fill_value=0.0
+            )
+            calibrated_ae = float(predict_log_mlp_pre_ae(ae_bundle, prop, feature_df)[0])
+            ae_values.append(calibrated_ae)
         output["properties"][prop] = {
             "prediction": pred_mean,
-            "pre_AE": predicted_ae,
+            "pre_AE": float(np.mean(ae_values)),
         }
     return output
 
@@ -452,11 +532,7 @@ def print_human_readable(result: Dict) -> None:
     print(f"\n{'Property':<8} {'Prediction':>14} {'pre_AE':>14}")
     for prop in PROPERTY_DISPLAY_ORDER:
         item = result["properties"][prop]
-        print(
-            f"{prop:<8} "
-            f"{item['prediction']:>14.6g} "
-            f"{item['pre_AE']:>14.6g}"
-        )
+        print(f"{prop:<8} " f"{item['prediction']:>14.6g} " f"{item['pre_AE']:>14.6g}")
 
 
 if __name__ == "__main__":

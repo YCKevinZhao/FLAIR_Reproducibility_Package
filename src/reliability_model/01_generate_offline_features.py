@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 import config
-from main_model_inference import (
+from ae_from_pt import (
     MyPredictionModel,
     auto_dataset_paths,
     build_reference_info,
@@ -32,7 +32,9 @@ from data_utils import extract_features_for_error_model, records_from_dataframe,
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate offline AE feature CSV from 5-fold checkpoints.")
+    parser = argparse.ArgumentParser(
+        description="Generate offline AE feature CSV from 5-fold checkpoints."
+    )
     parser.add_argument("--split", choices=["scaffold", "random", "ae"], default="ae")
     parser.add_argument("--best_dir", default="Best")
     parser.add_argument("--split_dir", default="../../data/splits/deployment")
@@ -99,10 +101,14 @@ def discover_checkpoints(best_dir: str, split: str, expected: int = 5) -> List[s
     label = label_by_split.get(split)
     if label is None:
         raise ValueError(f"Unsupported split={split!r}.")
-    paths = sorted(root.glob(f"{label}_*/best_model.pt"), key=lambda p: (fold_number(p, split), str(p)))
+    paths = sorted(
+        root.glob(f"{label}_*/best_model.pt"), key=lambda p: (fold_number(p, split), str(p))
+    )
     if len(paths) != expected:
         found = "\n".join(f"  - {p}" for p in paths) or "  <none>"
-        raise ValueError(f"Expected exactly {expected} {label} checkpoints under {root}, found {len(paths)}.\n{found}")
+        raise ValueError(
+            f"Expected exactly {expected} {label} checkpoints under {root}, found {len(paths)}.\n{found}"
+        )
     return [str(p.resolve()) for p in paths]
 
 
@@ -121,7 +127,12 @@ def ensure_random_csvs_available(split_dir: str) -> None:
 
 
 def reference_cache_path(split: str, fold_idx: int) -> Path:
-    return Path(__file__).resolve().parents[2] / "results" / "intermediate" / f"reference_cache_{split}_fold{fold_idx}.pkl"
+    return (
+        Path(__file__).resolve().parents[2]
+        / "results"
+        / "intermediate"
+        / f"reference_cache_{split}_fold{fold_idx}.pkl"
+    )
 
 
 def load_or_build_reference_info(
@@ -150,7 +161,7 @@ def load_or_build_reference_info(
     reference_info["solvent_cache"] = None
     path.parent.mkdir(parents=True, exist_ok=True)
     item = {
-        "version": "flair_v3_reference_cache",
+        "version": "reference_cache_v1",
         "split": split,
         "fold": int(fold_idx),
         "checkpoint_path": checkpoint_path,
@@ -320,8 +331,12 @@ def rows_for_property_from_shared(
             "source_csv": source_csv,
             "checkpoint_path": checkpoint_path,
             "row_index": sub["row_index"].to_numpy(dtype=int),
-            config.SMILES_COLUMN: sub.get(config.SMILES_COLUMN, pd.Series([""] * len(sub))).astype(str).to_numpy(),
-            config.SOLVENT_COLUMN: sub.get(config.SOLVENT_COLUMN, pd.Series([""] * len(sub))).astype(str).to_numpy(),
+            config.SMILES_COLUMN: sub.get(config.SMILES_COLUMN, pd.Series([""] * len(sub)))
+            .astype(str)
+            .to_numpy(),
+            config.SOLVENT_COLUMN: sub.get(config.SOLVENT_COLUMN, pd.Series([""] * len(sub)))
+            .astype(str)
+            .to_numpy(),
             "property": prop,
             "y_true": y_true,
             "y_pred": y_pred,
@@ -391,14 +406,16 @@ def generate_offline_features(
         ensure_random_csvs_available(split_dir)
 
     output_feature_csv = Path(output_csv or f"results/offline_ae_features_{split}.csv")
-    output_summary_json = Path(summary_json or f"results/offline_feature_generation_summary_{split}.json")
+    output_summary_json = Path(
+        summary_json or f"results/offline_feature_generation_summary_{split}.json"
+    )
     checkpoint_paths = discover_checkpoints(best_dir, split=split, expected=5)
     resolved_feature_n_jobs = resolve_feature_n_jobs(feature_n_jobs)
     resolved_feature_chunk_size = resolve_feature_chunk_size(feature_chunk_size)
     resolved_feature_backend = resolve_feature_backend(feature_backend)
     all_feature_frames: List[pd.DataFrame] = []
     summary = {
-        "version": f"flair_v3_offline_ae_features_{split}",
+        "version": f"offline_ae_features_{split}_v1",
         "split": split,
         "feature_n_jobs": resolved_feature_n_jobs,
         "feature_chunk_size": resolved_feature_chunk_size,
@@ -459,13 +476,17 @@ def generate_offline_features(
         for split_name, csv_path in split_specs:
             if not csv_path or not Path(csv_path).exists():
                 continue
-            feature_rows_csv = results_dir / f"offline_feature_rows_{split}_fold{fold_idx}_{split_name}.csv"
+            feature_rows_csv = (
+                results_dir / f"offline_feature_rows_{split}_fold{fold_idx}_{split_name}.csv"
+            )
             if feature_rows_csv.exists():
                 log(f"[Offline Features] reusing feature rows: {feature_rows_csv.name}")
                 all_feature_frames.append(pd.read_csv(feature_rows_csv))
                 continue
 
-            log(f"[Offline Features] predicting fold {fold_idx} {split_name}: {Path(csv_path).name}")
+            log(
+                f"[Offline Features] predicting fold {fold_idx} {split_name}: {Path(csv_path).name}"
+            )
             prediction_csv = results_dir / f"offline_predictions_fold{fold_idx}_{split_name}.csv"
             if prediction_csv.exists():
                 log(f"[Offline Features] reusing predictions: {prediction_csv.name}")
@@ -477,7 +498,11 @@ def generate_offline_features(
                     output_csv=str(prediction_csv),
                     batch_size=256,
                     cv_fold=paths["calibration_fold"] if split_name == "calibration" else None,
-                    fold_role="valid" if split_name == "calibration" and paths["calibration_fold"] is not None else None,
+                    fold_role=(
+                        "valid"
+                        if split_name == "calibration" and paths["calibration_fold"] is not None
+                        else None
+                    ),
                 )
 
             split_feature_frames = rows_for_all_properties(

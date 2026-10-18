@@ -13,6 +13,7 @@ class EarlyStoppingState:
     """
     。
     """
+
     best_score: Optional[float] = None
     best_epoch: int = 0
     bad_epochs: int = 0
@@ -226,7 +227,9 @@ class EarlyStopping:
         )
 
 
-def load_early_stopping_checkpoint(path: str | Path, map_location: str | torch.device = "cpu") -> Dict[str, Any]:
+def load_early_stopping_checkpoint(
+    path: str | Path, map_location: str | torch.device = "cpu"
+) -> Dict[str, Any]:
     """
      EarlyStopping  checkpoint。
     """
@@ -234,7 +237,7 @@ def load_early_stopping_checkpoint(path: str | Path, map_location: str | torch.d
 
 
 if __name__ == "__main__":
-    
+
     es = EarlyStopping(
         patience=5,
         min_delta=1e-4,

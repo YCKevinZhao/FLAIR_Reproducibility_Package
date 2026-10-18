@@ -10,9 +10,6 @@ import torch.nn as nn
 TARGET_NAMES = ["abs", "emi", "plqy", "em"]
 
 
-
-
-
 def get_preferred_device(explicit_device: Optional[str | torch.device] = None) -> torch.device:
     """
      CUDA；，。
@@ -23,7 +20,6 @@ def get_preferred_device(explicit_device: Optional[str | torch.device] = None) -
     if torch.cuda.is_available():
         return torch.device("cuda")
     return torch.device("cpu")
-
 
 
 def get_model_device(model: nn.Module) -> torch.device:
@@ -37,7 +33,6 @@ def get_model_device(model: nn.Module) -> torch.device:
         return get_preferred_device()
 
 
-
 def get_model_dtype(model: nn.Module) -> torch.dtype:
     """
      dtype。
@@ -47,7 +42,6 @@ def get_model_dtype(model: nn.Module) -> torch.dtype:
         return next(model.parameters()).dtype
     except StopIteration:
         return torch.float32
-
 
 
 def move_model_to_preferred_device(
@@ -61,7 +55,6 @@ def move_model_to_preferred_device(
     target_device = get_preferred_device(device)
     model = model.to(target_device)
     return model, target_device
-
 
 
 def to_device_tensor(
@@ -85,7 +78,6 @@ def to_device_tensor(
     return torch.as_tensor(x, device=device, dtype=dtype)
 
 
-
 def to_model_device(
     model: nn.Module,
     x,
@@ -99,7 +91,6 @@ def to_model_device(
     return to_device_tensor(x, device=device, dtype=dtype, non_blocking=non_blocking)
 
 
-
 def new_tensor_like(
     ref_tensor: torch.Tensor,
     data,
@@ -111,9 +102,6 @@ def new_tensor_like(
     if dtype is None:
         dtype = ref_tensor.dtype
     return torch.as_tensor(data, device=ref_tensor.device, dtype=dtype)
-
-
-
 
 
 def init_mlp_weights(m: nn.Module) -> None:
@@ -251,7 +239,9 @@ class MultiTaskMLP(nn.Module):
             trunk.append(nn.Dropout(dropout))
 
         self.trunk = nn.Sequential(*trunk)
-        self.task_heads = nn.ModuleList([nn.Linear(self.hidden_dim, 1) for _ in range(self.out_dim)])
+        self.task_heads = nn.ModuleList(
+            [nn.Linear(self.hidden_dim, 1) for _ in range(self.out_dim)]
+        )
 
         self.trunk.apply(init_mlp_weights)
         self.task_heads.apply(init_mlp_weights)
@@ -281,9 +271,6 @@ class MultiTaskMLP(nn.Module):
         return torch.cat(outputs, dim=1)
 
 
-
-
-
 def _ensure_2d_y(y: torch.Tensor) -> torch.Tensor:
     """
      y  [B,4]  [B,1,4]， [B,4]
@@ -298,7 +285,6 @@ def _ensure_2d_y(y: torch.Tensor) -> torch.Tensor:
         raise ValueError(f" y  [B,4]， {tuple(y.shape)}")
 
     return y
-
 
 
 def _prepare_xy_mask_for_model(
@@ -326,7 +312,6 @@ def _prepare_xy_mask_for_model(
     return x_vec, y_true, y_mask
 
 
-
 def make_effective_mask(
     y_true: torch.Tensor,
     y_mask: Optional[torch.Tensor] = None,
@@ -346,9 +331,6 @@ def make_effective_mask(
 
     finite = torch.isfinite(y_true)
     return base & finite
-
-
-
 
 
 def masked_mse_loss(
@@ -381,7 +363,6 @@ def masked_mse_loss(
     loss_mat = (pred - y_safe).pow(2)
     denom = eff_mask.sum().clamp(min=1.0)
     return (loss_mat * eff_mask).sum() / denom
-
 
 
 def masked_mse_loss_with_stats(
@@ -419,7 +400,9 @@ def masked_mse_loss_with_stats(
         if m.any():
             loss_task_list.append(sq_err[m, j].mean())
         else:
-            loss_task_list.append(torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype))
+            loss_task_list.append(
+                torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype)
+            )
 
     loss_task = torch.stack(loss_task_list)
 
@@ -439,7 +422,6 @@ def masked_mse_loss_with_stats(
     return loss, loss_task, sq_err, eff_mask
 
 
-
 def mse_loss_ignore_masked(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
@@ -455,7 +437,6 @@ def mse_loss_ignore_masked(
         y_mask=y_mask,
         per_task_average=per_task_average,
     )
-
 
 
 def masked_mse_loss_ignore_masked(
@@ -532,7 +513,9 @@ def relative_mse_loss_ignore_masked(
         if m.any():
             loss_task_list.append(relative_sq_err[m, j].mean())
         else:
-            loss_task_list.append(torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype))
+            loss_task_list.append(
+                torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype)
+            )
 
     loss_task = torch.stack(loss_task_list)
 
@@ -550,9 +533,6 @@ def relative_mse_loss_ignore_masked(
             loss = torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype)
 
     return loss, loss_task, relative_sq_err, eff_mask
-
-
-
 
 
 def r2_ignore_masked(
@@ -606,15 +586,9 @@ def r2_ignore_masked(
     return r2_mean, r2_task, eff_mask.float()
 
 
-
-
-
 @torch.no_grad()
 def _detach_to_cpu(x: torch.Tensor) -> Any:
     return x.detach().cpu()
-
-
-
 
 
 def train_step(
@@ -625,7 +599,7 @@ def train_step(
     y_mask: Optional[torch.Tensor] = None,
     extra_loss: Optional[torch.Tensor] = None,
     clip_grad_norm: Optional[float] = 5.0,
-    clip_grad_params = None,
+    clip_grad_params=None,
     denom_eps: float = 1e-8,
     require_nonzero_denom_for_loss: bool = True,
     r2_require_nonzero_denom: bool = False,
@@ -713,7 +687,9 @@ def train_step(
         "total_loss": float(total_loss.detach().cpu().item()),
         "extra_loss": float(extra_loss.detach().cpu().item()) if extra_loss is not None else 0.0,
         "loss_task": _detach_to_cpu(loss_task).numpy(),
-        "r2_mean": float(r2_mean.detach().cpu().item()) if not torch.isnan(r2_mean) else float("nan"),
+        "r2_mean": (
+            float(r2_mean.detach().cpu().item()) if not torch.isnan(r2_mean) else float("nan")
+        ),
         "r2_task": _detach_to_cpu(r2_task).numpy(),
         "n_valid_loss": int(eff_mask_loss.sum().item()),
         "n_valid_r2": int(eff_mask_r2.sum().item()),
@@ -721,9 +697,6 @@ def train_step(
         "y_true": _detach_to_cpu(y_true),
         "y_mask": _detach_to_cpu(y_mask) if y_mask is not None else None,
     }
-
-
-
 
 
 @torch.no_grad()
@@ -772,7 +745,9 @@ def eval_step(
         "device": str(get_model_device(model)),
         "loss": float(loss.detach().cpu().item()) if not torch.isnan(loss) else float("nan"),
         "loss_task": _detach_to_cpu(loss_task).numpy(),
-        "r2_mean": float(r2_mean.detach().cpu().item()) if not torch.isnan(r2_mean) else float("nan"),
+        "r2_mean": (
+            float(r2_mean.detach().cpu().item()) if not torch.isnan(r2_mean) else float("nan")
+        ),
         "r2_task": _detach_to_cpu(r2_task).numpy(),
         "n_valid_loss": int(eff_mask_loss.sum().item()),
         "n_valid_r2": int(eff_mask_r2.sum().item()),
@@ -780,9 +755,6 @@ def eval_step(
         "y_true": _detach_to_cpu(y_true),
         "y_mask": _detach_to_cpu(y_mask) if y_mask is not None else None,
     }
-
-
-
 
 
 def build_mlp(

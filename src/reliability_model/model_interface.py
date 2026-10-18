@@ -44,10 +44,6 @@ def _log(message: str) -> None:
     print(message, flush=True)
 
 
-
-
-
-
 _ENV_ROOT_KEYS = (
     "MAIN_MODEL_ROOT",
     "MODEL_CODE_ROOT",
@@ -80,15 +76,10 @@ def _candidate_roots(checkpoint_path: Optional[str] = None) -> list[Path]:
         if val:
             roots.append(Path(val))
 
-    
     roots.append(Path.cwd())
 
-    
     roots.append(Path(__file__).resolve().parent)
 
-    
-    
-    
     if checkpoint_path:
         ckpt = Path(checkpoint_path).expanduser()
         if not ckpt.is_absolute():
@@ -101,9 +92,7 @@ def _candidate_roots(checkpoint_path: Optional[str] = None) -> list[Path]:
 
 def _insert_candidate_roots(checkpoint_path: Optional[str] = None) -> list[Path]:
     roots = _candidate_roots(checkpoint_path)
-    
-    
-    
+
     for root in reversed(roots):
         s = str(root)
         sys.path[:] = [existing for existing in sys.path if existing != s]
@@ -137,10 +126,6 @@ def _import_main_modules(checkpoint_path: Optional[str] = None):
     return dl, mf, tr, PyGDataLoader
 
 
-
-
-
-
 _PATCHED_MORE_ONLY = False
 _ORIGINAL_BUILD_MOL_ENCODER = None
 
@@ -164,7 +149,9 @@ class _GraphTransformerOnlineMOREAdapterOnlyEncoder(nn.Module):
         more_vec = self.more_encoder(data)
 
         if more_vec.device != graph_vec.device or more_vec.dtype != graph_vec.dtype:
-            more_vec = more_vec.to(device=graph_vec.device, dtype=graph_vec.dtype, non_blocking=True)
+            more_vec = more_vec.to(
+                device=graph_vec.device, dtype=graph_vec.dtype, non_blocking=True
+            )
 
         adapter_vec = self.more_adapter(more_vec)
         if return_node_embeddings:
@@ -218,11 +205,13 @@ def _patch_more_only_encoder_if_needed(mf, solute_encoder_type: object) -> None:
 
         graph_encoder, _ = mf._build_graph_transformer_encoder(sample_batch, cfg)
         more_weight_path = getattr(cfg, "MORE_WEIGHT_PATH", None)
-        allow_missing_more = bool(getattr(cfg, "ALLOW_MISSING_MORE_WEIGHT_FOR_CHECKPOINT_LOAD", False))
-        if (more_weight_path is None or str(more_weight_path).strip() == "") and not allow_missing_more:
-            raise ValueError(
-                "adapter_only / noGT  MORE_WEIGHT_PATH， 'MORE.pth'。"
-            )
+        allow_missing_more = bool(
+            getattr(cfg, "ALLOW_MISSING_MORE_WEIGHT_FOR_CHECKPOINT_LOAD", False)
+        )
+        if (
+            more_weight_path is None or str(more_weight_path).strip() == ""
+        ) and not allow_missing_more:
+            raise ValueError("adapter_only / noGT  MORE_WEIGHT_PATH， 'MORE.pth'。")
 
         more_encoder = mf.OnlineMOREGraphEncoder(
             weight_path=more_weight_path,
@@ -246,11 +235,6 @@ def _patch_more_only_encoder_if_needed(mf, solute_encoder_type: object) -> None:
 
     mf._build_mol_encoder = _build_mol_encoder_more_only
     _PATCHED_MORE_ONLY = True
-
-
-
-
-
 
 
 def _torch_load(path: str | Path, map_location):
@@ -414,7 +398,6 @@ def _infer_architecture_from_checkpoint_state(ckpt: dict, cfg_dict: dict, raw_cf
     if not has_more:
         return
 
-    
     cfg_dict["ALLOW_MISSING_MORE_WEIGHT_FOR_CHECKPOINT_LOAD"] = True
 
     if _cfg_value_missing(raw_cfg, "SOLUTE_ENCODER_TYPE"):
@@ -428,9 +411,11 @@ def _infer_architecture_from_checkpoint_state(ckpt: dict, cfg_dict: dict, raw_cf
             if dist_adapter_only <= dist_gt_concat:
                 cfg_dict["SOLUTE_ENCODER_TYPE"] = "graph_transformer_more_online_ln_adapter_no_gt"
             else:
-                cfg_dict["SOLUTE_ENCODER_TYPE"] = "graph_transformer_more_online_ln_adapter_gt_concat"
+                cfg_dict["SOLUTE_ENCODER_TYPE"] = (
+                    "graph_transformer_more_online_ln_adapter_gt_concat"
+                )
         else:
-            
+
             cfg_dict["SOLUTE_ENCODER_TYPE"] = "graph_transformer_more_online_ln_adapter_gt_concat"
 
 
@@ -460,7 +445,9 @@ def _resolve_existing_path(
     if p.is_absolute():
         candidates.append(p)
     else:
-        for root in list(extra_roots) + _candidate_roots(str(checkpoint_path) if checkpoint_path else None):
+        for root in list(extra_roots) + _candidate_roots(
+            str(checkpoint_path) if checkpoint_path else None
+        ):
             candidates.append(root / p)
         candidates.append(Path.cwd() / p)
         candidates.append(Path(__file__).resolve().parent / p)
@@ -471,19 +458,23 @@ def _resolve_existing_path(
         if item.exists():
             return str(item)
 
-    stored_name = p.name.lower()
+    legacy_name = p.name.lower()
     replacement_name: Optional[str] = None
-    if stored_name in {"development.csv", "flair_db.csv"} or re.fullmatch(
+    if legacy_name in {"development.csv", "flair_db.csv"} or re.fullmatch(
         r"(?:train|validation)_fold_\d+\.csv", p.name, flags=re.IGNORECASE
     ):
         replacement_name = "deployment.csv"
-    elif stored_name == "holdout_test.csv":
+    elif legacy_name == "holdout_test.csv":
         replacement_name = "deployment_test.csv"
 
     if replacement_name is not None:
         fallback_candidates = [item.parent / replacement_name for item in candidates]
-        fallback_candidates.extend(item.parent / "deployment" / replacement_name for item in candidates)
-        for root in list(extra_roots) + _candidate_roots(str(checkpoint_path) if checkpoint_path else None):
+        fallback_candidates.extend(
+            item.parent / "deployment" / replacement_name for item in candidates
+        )
+        for root in list(extra_roots) + _candidate_roots(
+            str(checkpoint_path) if checkpoint_path else None
+        ):
             fallback_candidates.extend(
                 [
                     root / replacement_name,
@@ -497,9 +488,7 @@ def _resolve_existing_path(
 
     if required:
         tried = "\n".join([f"  - {c}" for c in candidates])
-        raise FileNotFoundError(
-            f"{description}: {raw}\n：\n{tried}"
-        )
+        raise FileNotFoundError(f"{description}: {raw}\n：\n{tried}")
     return str(candidates[0]) if candidates else raw
 
 
@@ -623,7 +612,6 @@ def _cfg_from_checkpoint(ckpt: dict, checkpoint_path: str, device: torch.device)
 
     roots = _candidate_roots(checkpoint_path)
 
-    
     cfg_dict["DEVICE"] = device
     cfg_dict["BATCH_SIZE"] = 1
     cfg_dict["NUM_WORKERS"] = 0
@@ -635,7 +623,6 @@ def _cfg_from_checkpoint(ckpt: dict, checkpoint_path: str, device: torch.device)
         cfg_dict.get("ALLOW_MISSING_MORE_WEIGHT_FOR_CHECKPOINT_LOAD", False)
     )
 
-    
     cfg_dict["TRAIN_CSV"] = _resolve_existing_path(
         cfg_dict.get("TRAIN_CSV"),
         checkpoint_path=checkpoint_path,
@@ -669,20 +656,17 @@ def _cfg_from_checkpoint(ckpt: dict, checkpoint_path: str, device: torch.device)
         if resolved_more_path is not None and Path(str(resolved_more_path)).exists():
             cfg_dict["MORE_WEIGHT_PATH"] = resolved_more_path
         elif _checkpoint_has_more_state(ckpt):
-            
+
             cfg_dict["MORE_WEIGHT_PATH"] = None
 
     if cfg_dict.get("GRAPH_TRANSFORMER_READOUT_HEADS") is None:
         cfg_dict["GRAPH_TRANSFORMER_READOUT_HEADS"] = cfg_dict.get("GRAPH_TRANSFORMER_HEADS", 4)
     if cfg_dict.get("GRAPH_TRANSFORMER_READOUT_DROPOUT") is None:
-        cfg_dict["GRAPH_TRANSFORMER_READOUT_DROPOUT"] = cfg_dict.get("GRAPH_TRANSFORMER_DROPOUT", 0.1)
+        cfg_dict["GRAPH_TRANSFORMER_READOUT_DROPOUT"] = cfg_dict.get(
+            "GRAPH_TRANSFORMER_DROPOUT", 0.1
+        )
 
     return SimpleNamespace(**cfg_dict)
-
-
-
-
-
 
 
 def _target_stats_from_checkpoint(ckpt: dict) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -705,13 +689,15 @@ def _target_stats_from_checkpoint(ckpt: dict) -> Tuple[Optional[np.ndarray], Opt
     return mean.astype(np.float32), std.astype(np.float32)
 
 
-def _load_target_stats(dl, cfg: SimpleNamespace, ckpt: dict, checkpoint_path: str) -> Tuple[np.ndarray, np.ndarray, pd.DataFrame]:
+def _load_target_stats(
+    dl, cfg: SimpleNamespace, ckpt: dict, checkpoint_path: str
+) -> Tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     mean, std = _target_stats_from_checkpoint(ckpt)
 
     train_csv = getattr(cfg, "TRAIN_CSV", None)
     if train_csv is None or not str(train_csv).strip() or not Path(str(train_csv)).exists():
         if mean is not None and std is not None:
-            
+
             dummy = pd.DataFrame()
             return mean, std, dummy
         raise FileNotFoundError(
@@ -781,7 +767,16 @@ def _dataset_kwargs(cfg: SimpleNamespace) -> dict:
     }
 
 
-def _make_single_batch(dl, PyGDataLoader, *, smiles: str, solvent: Optional[str], cfg: SimpleNamespace, target_mean, target_std):
+def _make_single_batch(
+    dl,
+    PyGDataLoader,
+    *,
+    smiles: str,
+    solvent: Optional[str],
+    cfg: SimpleNamespace,
+    target_mean,
+    target_std,
+):
     df = _make_inference_df(dl, smiles=smiles, solvent=solvent)
     ds = dl.FluorSolventDataset(
         df=df,
@@ -793,15 +788,19 @@ def _make_single_batch(dl, PyGDataLoader, *, smiles: str, solvent: Optional[str]
     return next(iter(loader))
 
 
-def _make_sample_batch_for_build_system(dl, PyGDataLoader, *, cfg: SimpleNamespace, train_df: pd.DataFrame, target_mean, target_std):
+def _make_sample_batch_for_build_system(
+    dl, PyGDataLoader, *, cfg: SimpleNamespace, train_df: pd.DataFrame, target_mean, target_std
+):
     if train_df is not None and len(train_df) > 0:
         smi_col = getattr(dl, "SMILES_COL", "smiles")
         sol_col = getattr(dl, "SOLVENT_COL", "solvent")
         row = train_df.iloc[0]
         smiles = str(row[smi_col])
-        solvent = str(row[sol_col]) if sol_col in train_df.columns and not pd.isna(row[sol_col]) else ""
+        solvent = (
+            str(row[sol_col]) if sol_col in train_df.columns and not pd.isna(row[sol_col]) else ""
+        )
     else:
-        
+
         smiles = "CCO"
         solvent = "O"
     return _make_single_batch(
@@ -813,11 +812,6 @@ def _make_sample_batch_for_build_system(dl, PyGDataLoader, *, cfg: SimpleNamespa
         target_mean=target_mean,
         target_std=target_std,
     )
-
-
-
-
-
 
 
 def _strip_module_prefix(state_dict: dict) -> dict:
@@ -845,15 +839,11 @@ def _set_eval(system: SimpleNamespace) -> None:
             module.eval()
 
 
-
-
-
-
-
 def _cfg_get(name: str, default=None):
     """ reliability config.py ； default。"""
     try:
         import config as reliability_config
+
         return getattr(reliability_config, name, default)
     except Exception:
         return default
@@ -864,7 +854,9 @@ def _set_if_not_none(cfg_dict: dict, key: str, value) -> None:
         cfg_dict[key] = value
 
 
-def _make_training_cfg(train_csv: str, val_csv: str, test_csv: str, fold_idx: int, model_dir: str) -> SimpleNamespace:
+def _make_training_cfg(
+    train_csv: str, val_csv: str, test_csv: str, fold_idx: int, model_dir: str
+) -> SimpleNamespace:
     """ fold  cfg。
 
      config.CV_BASE_CHECKPOINT  cfg ；，
@@ -873,7 +865,12 @@ def _make_training_cfg(train_csv: str, val_csv: str, test_csv: str, fold_idx: in
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     base_ckpt_path = _cfg_get("CV_BASE_CHECKPOINT", None)
 
-    if base_ckpt_path is not None and str(base_ckpt_path).strip() not in {"", "None", "none", "null"}:
+    if base_ckpt_path is not None and str(base_ckpt_path).strip() not in {
+        "",
+        "None",
+        "none",
+        "null",
+    }:
         resolved_base = _resolve_existing_path(
             base_ckpt_path,
             checkpoint_path=None,
@@ -884,13 +881,14 @@ def _make_training_cfg(train_csv: str, val_csv: str, test_csv: str, fold_idx: in
         ckpt = _torch_load(resolved_base, map_location=device)
         if not isinstance(ckpt, dict) or "cfg" not in ckpt:
             raise ValueError(f"CV_BASE_CHECKPOINT  cfg  checkpoint: {resolved_base}")
-        
-        cfg_dict = vars(_cfg_from_checkpoint(ckpt, checkpoint_path=resolved_base, device=device)).copy()
+
+        cfg_dict = vars(
+            _cfg_from_checkpoint(ckpt, checkpoint_path=resolved_base, device=device)
+        ).copy()
     else:
         cfg_dict = _default_cfg_dict()
         cfg_dict["DEVICE"] = device
 
-    
     split_type = str(_cfg_get("CV_SPLIT_TYPE", "random")).strip().lower()
     fold_dir = Path(model_dir) / f"{split_type}_5fold" / f"fold_{int(fold_idx)}"
     fold_dir.mkdir(parents=True, exist_ok=True)
@@ -904,7 +902,6 @@ def _make_training_cfg(train_csv: str, val_csv: str, test_csv: str, fold_idx: in
     cfg_dict["CV_FOLD"] = int(fold_idx) + 1
     cfg_dict["TARGET_NAMES"] = ["abs", "emi", "plqy", "em"]
 
-    
     override_map = {
         "EPOCHS": ("CV_EPOCHS", cfg_dict.get("EPOCHS", 2000)),
         "MIN_EPOCHS": ("CV_MIN_EPOCHS", cfg_dict.get("MIN_EPOCHS", 70)),
@@ -930,7 +927,6 @@ def _make_training_cfg(train_csv: str, val_csv: str, test_csv: str, fold_idx: in
     for key, (cv_name, default_value) in override_map.items():
         _set_if_not_none(cfg_dict, key, _cfg_get(cv_name, default_value))
 
-    
     arch_override_map = {
         "SOLUTE_ENCODER_TYPE": "CV_SOLUTE_ENCODER_TYPE",
         "MORE_WEIGHT_PATH": "CV_MORE_WEIGHT_PATH",
@@ -976,7 +972,6 @@ def _make_training_cfg(train_csv: str, val_csv: str, test_csv: str, fold_idx: in
     for key, cv_name in arch_override_map.items():
         _set_if_not_none(cfg_dict, key, _cfg_get(cv_name, None))
 
-    
     cfg_dict["DEVICE"] = device
     cfg_dict["DENOM_EPS"] = float(cfg_dict.get("DENOM_EPS", 1e-8))
     cfg_dict["SEED"] = int(_cfg_get("RANDOM_SEED", cfg_dict.get("SEED", 42))) + int(fold_idx)
@@ -996,10 +991,6 @@ def _set_global_seed(seed: int) -> None:
     torch.manual_seed(int(seed))
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(int(seed))
-
-
-
-
 
 
 class MyPredictionModel:
@@ -1030,7 +1021,9 @@ class MyPredictionModel:
         self.cfg = cfg
         self.target_mean = _to_numpy_1d(target_mean) if target_mean is not None else None
         self.target_std = _to_numpy_1d(target_std) if target_std is not None else None
-        self.target_names = list(target_names) if target_names is not None else ["abs", "emi", "plqy", "em"]
+        self.target_names = (
+            list(target_names) if target_names is not None else ["abs", "emi", "plqy", "em"]
+        )
         self.dl = dl
         self.tr = tr
         self.PyGDataLoader = PyGDataLoader
@@ -1065,7 +1058,9 @@ class MyPredictionModel:
             model_dir=model_dir,
         )
         _set_global_seed(int(getattr(cfg, "SEED", 42)))
-        _patch_more_only_encoder_if_needed(mf, getattr(cfg, "SOLUTE_ENCODER_TYPE", "graph_transformer"))
+        _patch_more_only_encoder_if_needed(
+            mf, getattr(cfg, "SOLUTE_ENCODER_TYPE", "graph_transformer")
+        )
 
         train_loader, val_loader, test_loader, _ = dl.make_train_val_test_loaders(
             train_csv_path=cfg.TRAIN_CSV,
@@ -1137,7 +1132,13 @@ class MyPredictionModel:
             )
         if cv_fold_override is not None:
             cfg.CV_FOLD = int(cv_fold_override)
-        more_path_missing = getattr(cfg, "MORE_WEIGHT_PATH", None) in {None, "", "None", "none", "null"}
+        more_path_missing = getattr(cfg, "MORE_WEIGHT_PATH", None) in {
+            None,
+            "",
+            "None",
+            "none",
+            "null",
+        }
         fallback_more_path = _cfg_get("CV_MORE_WEIGHT_PATH", None)
         if more_path_missing and fallback_more_path not in {None, "", "None", "none", "null"}:
             cfg.MORE_WEIGHT_PATH = _resolve_existing_path(
@@ -1147,7 +1148,9 @@ class MyPredictionModel:
                 required=True,
                 description=" CV_MORE_WEIGHT_PATH",
             )
-        _patch_more_only_encoder_if_needed(mf, getattr(cfg, "SOLUTE_ENCODER_TYPE", "graph_transformer"))
+        _patch_more_only_encoder_if_needed(
+            mf, getattr(cfg, "SOLUTE_ENCODER_TYPE", "graph_transformer")
+        )
 
         _log("[MainModel] loading target normalization stats")
         target_mean, target_std, train_df = _load_target_stats(dl, cfg, ckpt, checkpoint_path)
@@ -1170,18 +1173,22 @@ class MyPredictionModel:
         _load_state(system.mlp, ckpt.get("mlp"), "mlp", strict=True)
 
         if "sol_encoder" in ckpt and ckpt.get("sol_encoder") is not None:
-            
+
             _load_state(system.sol_encoder, ckpt.get("sol_encoder"), "sol_encoder", strict=False)
 
         if getattr(system, "use_fusion_self_attention", False):
             if ckpt.get("fusion_encoder") is None:
                 raise KeyError("checkpoint  fusion_encoder， cfg  fusion self-attention。")
-            _load_state(system.fusion_encoder, ckpt.get("fusion_encoder"), "fusion_encoder", strict=False)
+            _load_state(
+                system.fusion_encoder, ckpt.get("fusion_encoder"), "fusion_encoder", strict=False
+            )
 
         _set_eval(system)
         _log("[MainModel] checkpoint ready")
 
-        target_names = list(getattr(cfg, "TARGET_NAMES", getattr(dl, "TARGET_COLS", ["abs", "emi", "plqy", "em"])))
+        target_names = list(
+            getattr(cfg, "TARGET_NAMES", getattr(dl, "TARGET_COLS", ["abs", "emi", "plqy", "em"]))
+        )
         return cls(
             system=system,
             cfg=cfg,
@@ -1237,9 +1244,7 @@ class MyPredictionModel:
         target_std = np.asarray(self.target_std, dtype=np.float32).reshape(-1)
 
         if pred_scaled.size != target_mean.size:
-            raise ValueError(
-                f"={pred_scaled.size}，target_mean/std ={target_mean.size}，。"
-            )
+            raise ValueError(f"={pred_scaled.size}，target_mean/std ={target_mean.size}，。")
 
         pred_raw = pred_scaled * target_std + target_mean
 
@@ -1249,7 +1254,6 @@ class MyPredictionModel:
                 break
             pred_by_name[str(name).lower()] = float(pred_raw[i])
 
-        
         return {
             "plqy": float(pred_by_name.get("plqy", np.nan)),
             "emi": float(pred_by_name.get("emi", np.nan)),
@@ -1258,10 +1262,7 @@ class MyPredictionModel:
         }
 
     def save(self, path: str):
-        raise NotImplementedError(
-            "； trainer.py  best_model.pt。"
-        )
-
+        raise NotImplementedError("； trainer.py  best_model.pt。")
 
 
 DummyMultiTaskModel = MyPredictionModel

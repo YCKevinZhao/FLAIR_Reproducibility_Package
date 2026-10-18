@@ -17,7 +17,7 @@ from trainer import train_experiment
 
 @dataclass
 class RunConfig:
-    
+
     seed: int = 42
     batch_size: int = 256
     epochs: int = 5000
@@ -25,26 +25,17 @@ class RunConfig:
     lr: float = 1e-3
     weight_decay: float = 1e-4
 
-    
-    
-    
     l2sp_enabled: bool = False
     l2sp_lambda: float = 1e-4
     l2sp_modules: tuple[str, ...] = ("mol_encoder.more_encoder",)
     l2sp_exclude_bias_norm: bool = True
 
-    
     num_workers: int = 4
     cache_graphs: bool = True
     drop_invalid_solvent_in_graph: bool = True
 
-    
-    
     solute_encoder_type: str = "graph_transformer"
 
-    
-    
-    
     more_weight_path: Optional[str] = None
     more_num_layer: int = 5
     more_emb_dim: int = 300
@@ -55,17 +46,14 @@ class RunConfig:
     more_frozen: bool = True
     more_unfrozen_layers: Optional[int] = None
 
-    
     morgan_radius: int = 4
     morgan_n_bits: int = 256
     morgan_use_chirality: bool = False
 
-    
     rdkit_descriptor_names: Optional[tuple[str, ...]] = None
     rdkit_nan_value: float = 0.0
     rdkit_inf_value: float = 0.0
 
-    
     graph_transformer_hidden: int = 128
     graph_transformer_layers: int = 3
     graph_transformer_out: int = 64
@@ -74,16 +62,13 @@ class RunConfig:
     graph_transformer_dropout: float = 0.1
     graph_transformer_use_edge_attr: bool = True
     graph_transformer_beta: bool = False
-    
-    
-    
+
     graph_transformer_readout: str = "attention"
     graph_transformer_readout_heads: Optional[int] = None
     graph_transformer_readout_layers: int = 1
     graph_transformer_readout_ffn_dim: Optional[int] = None
     graph_transformer_readout_dropout: Optional[float] = None
 
-    
     solvent_graph_encoder_type: Optional[str] = None
     solvent_gat_hidden: int = 128
     solvent_gat_layers: int = 3
@@ -100,9 +85,6 @@ class RunConfig:
     solvent_graph_transformer_use_edge_attr: bool = True
     solvent_graph_transformer_beta: bool = False
 
-    
-    
-    
     fusion_type: str = "concat"
     fusion_attention_dim: int = 128
     fusion_attention_heads: int = 4
@@ -111,17 +93,14 @@ class RunConfig:
     fusion_attention_dropout: float = 0.1
     fusion_output_mode: str = "cls"
 
-    
     mlp_hidden: int = 512
     mlp_layers: int = 3
     mlp_dropout: float = 0.1
 
-    
     early_stopping_min_delta: float = 1e-4
     early_stopping_mode: str = "max"
     early_stopping_verbose: bool = True
 
-    
     lr_scheduler_enabled: bool = True
     lr_scheduler_name: str = "ReduceLROnPlateau"
     lr_scheduler_monitor: str = "val_loss"
@@ -134,7 +113,6 @@ class RunConfig:
     lr_scheduler_min_lr: float = 1e-6
     lr_scheduler_eps: float = 1e-8
 
-    
     denom_eps: float = 1e-8
     solvent_mode: str = "MorganFP"
     target_names: tuple[str, ...] = ("abs", "emi", "plqy", "em")
@@ -335,7 +313,11 @@ def collect_run_metrics(cfg_ns: SimpleNamespace) -> dict:
         row["best_epoch"] = _safe_scalar_from_npz(obj, "best_epoch")
         row["best_val_r2"] = _load_best_val_r2_from_checkpoint(cfg_ns.BEST_PATH)
         if not np.isfinite(row["best_val_r2"]):
-            val_r2 = np.asarray(obj["val_r2"], dtype=float).reshape(-1) if "val_r2" in obj else np.array([], dtype=float)
+            val_r2 = (
+                np.asarray(obj["val_r2"], dtype=float).reshape(-1)
+                if "val_r2" in obj
+                else np.array([], dtype=float)
+            )
             best_epoch = row["best_epoch"]
             if np.isfinite(best_epoch):
                 best_epoch = int(best_epoch)
@@ -511,7 +493,7 @@ def run_and_save(
         train_loader=train_loader,
         val_loader=val_loader,
         test_loader=test_loader,
-        cfg=cfg_ns
+        cfg=cfg_ns,
     )
 
     summary_row = collect_run_metrics(cfg_ns)

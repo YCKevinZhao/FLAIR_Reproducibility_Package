@@ -1,4 +1,3 @@
-
 """
 AE 、scaffold split、、 PCA 。
 
@@ -87,12 +86,6 @@ SOLVENT_SCAFFOLD_FEATURE_NAMES = [
 ]
 
 FOLD_VARIANCE_FEATURE = "fold_variance"
-
-
-def _safe_float_array(values: Sequence) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    arr[~np.isfinite(arr)] = np.nan
-    return arr
 
 
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -271,8 +264,7 @@ def build_solvent_tanimoto_reference(solvent_values: Sequence[object]) -> Dict:
 def solvent_reference_features(solvent: object, reference: Dict) -> Dict[str, float]:
     """Return exact occurrence count and Tanimoto-neighborhood features for a solvent."""
     values = {
-        name: 0.0
-        for name in [*SOLVENT_REFERENCE_FEATURE_NAMES, *SOLVENT_SCAFFOLD_FEATURE_NAMES]
+        name: 0.0 for name in [*SOLVENT_REFERENCE_FEATURE_NAMES, *SOLVENT_SCAFFOLD_FEATURE_NAMES]
     }
     canonical = canonical_smiles(solvent)
     mol = mol_from_smiles(canonical) if canonical else None
@@ -291,7 +283,11 @@ def solvent_reference_features(solvent: object, reference: Dict) -> Dict[str, fl
         reference_scaffold_fingerprints = list(reference.get("scaffold_fingerprints", []))
         if scaffold_fingerprint is not None and reference_scaffold_fingerprints:
             values["solvent_scaffold_similarity"] = float(
-                max(DataStructs.BulkTanimotoSimilarity(scaffold_fingerprint, reference_scaffold_fingerprints))
+                max(
+                    DataStructs.BulkTanimotoSimilarity(
+                        scaffold_fingerprint, reference_scaffold_fingerprints
+                    )
+                )
             )
 
     fingerprint = get_morgan_fingerprint(mol)
@@ -324,7 +320,9 @@ def solvent_reference_features(solvent: object, reference: Dict) -> Dict[str, fl
             "solvent_top1_top2_tanimoto_gap": (
                 float(top[0] - top[1]) if len(top) > 1 else float(top[0])
             ),
-            "solvent_same_scaffold_neighbor_count_ge_0_5": float(np.count_nonzero(same_scaffold_mask)),
+            "solvent_same_scaffold_neighbor_count_ge_0_5": float(
+                np.count_nonzero(same_scaffold_mask)
+            ),
             "solvent_other_scaffold_neighbor_count_ge_0_5": float(
                 np.count_nonzero(near_mask & ~same_scaffold_mask)
             ),
@@ -353,7 +351,9 @@ def tanimoto_neighborhood_features(
     near_mask = similarities >= 0.5
     scaffold = get_scaffold_smiles(mol)
     scaffold_array = np.asarray(reference_scaffolds, dtype=object)
-    same_scaffold_mask = near_mask & (scaffold_array == scaffold) if scaffold else np.zeros_like(near_mask)
+    same_scaffold_mask = (
+        near_mask & (scaffold_array == scaffold) if scaffold else np.zeros_like(near_mask)
+    )
 
     values.update(
         {
@@ -363,9 +363,15 @@ def tanimoto_neighborhood_features(
             "solute_neighbor_count_ge_0_5": float(np.count_nonzero(near_mask)),
             "solute_neighbor_count_ge_0_7": float(np.count_nonzero(similarities >= 0.7)),
             "solute_neighbor_count_ge_0_8": float(np.count_nonzero(similarities >= 0.8)),
-            "solute_top1_top2_tanimoto_gap": float(top[0] - top[1]) if len(top) > 1 else float(top[0]),
-            "solute_same_scaffold_neighbor_count_ge_0_5": float(np.count_nonzero(same_scaffold_mask)),
-            "solute_other_scaffold_neighbor_count_ge_0_5": float(np.count_nonzero(near_mask & ~same_scaffold_mask)),
+            "solute_top1_top2_tanimoto_gap": (
+                float(top[0] - top[1]) if len(top) > 1 else float(top[0])
+            ),
+            "solute_same_scaffold_neighbor_count_ge_0_5": float(
+                np.count_nonzero(same_scaffold_mask)
+            ),
+            "solute_other_scaffold_neighbor_count_ge_0_5": float(
+                np.count_nonzero(near_mask & ~same_scaffold_mask)
+            ),
         }
     )
     return values
@@ -475,10 +481,6 @@ def build_reference_cache(
     if len(valid_mols) == 0:
         raise ValueError("reference set 。")
 
-    
-    
-    
-    
     unique_mols: Dict[str, Chem.Mol] = {}
     mol_keys = []
     for mol in valid_mols:
@@ -533,7 +535,9 @@ def build_reference_cache(
     }
 
 
-def max_tanimoto_to_train_set(mol: Optional[Chem.Mol], train_mols: Sequence[Chem.Mol], train_fps=None) -> float:
+def max_tanimoto_to_train_set(
+    mol: Optional[Chem.Mol], train_mols: Sequence[Chem.Mol], train_fps=None
+) -> float:
     if mol is None or not train_mols:
         return 0.0
     query_fp = get_morgan_fingerprint(mol)
@@ -602,10 +606,10 @@ def local_density(
     return float(np.sum(distances <= radius))
 
 
-def extract_single_molecule_features(mol: Optional[Chem.Mol], cache: Dict, prefix: str) -> Tuple[List[float], List[str]]:
-    
-    
-    
+def extract_single_molecule_features(
+    mol: Optional[Chem.Mol], cache: Dict, prefix: str
+) -> Tuple[List[float], List[str]]:
+
     names = list(FEATURE_NAMES_SOLUTE if prefix == "solute" else FEATURE_NAMES_SOLVENT)
     if mol is None:
         return [0.0, 999.0, 1.0, 0.0, 0.0], names
@@ -685,7 +689,9 @@ def extract_features_for_error_model(
     return np.asarray(features, dtype=float), names
 
 
-def scaffold_split(smiles_list: Sequence[str], n_folds: int = 5, seed: int = RANDOM_SEED) -> List[List[int]]:
+def scaffold_split(
+    smiles_list: Sequence[str], n_folds: int = 5, seed: int = RANDOM_SEED
+) -> List[List[int]]:
     """ Bemis-Murcko scaffold  k-fold。"""
     scaffold_to_indices: Dict[str, List[int]] = {}
     for idx, smi in enumerate(smiles_list):
@@ -717,7 +723,9 @@ def records_from_dataframe(df: pd.DataFrame) -> List[Dict]:
             "solute_mol": mol_from_smiles(row[SMILES_COLUMN]),
         }
         if has_solvent:
-            rec["solvent"] = str(row[SOLVENT_COLUMN]).strip() if not pd.isna(row[SOLVENT_COLUMN]) else ""
+            rec["solvent"] = (
+                str(row[SOLVENT_COLUMN]).strip() if not pd.isna(row[SOLVENT_COLUMN]) else ""
+            )
             rec["solvent_mol"] = mol_from_smiles(row[SOLVENT_COLUMN])
         else:
             rec["solvent"] = None

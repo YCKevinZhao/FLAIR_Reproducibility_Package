@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
-
-from _runtime import pytorch_python
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -14,8 +13,12 @@ TRAIN_SCRIPT = CODE_DIR / "run_online_model_fivefold_training.py"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Step 1: train the 5 DL main-model folds.")
-    parser.add_argument("--single_run", type=int, default=None, help="Run only one fold, e.g. --single_run 1.")
-    parser.add_argument("--check", action="store_true", help="Only check files and print the command; do not train.")
+    parser.add_argument(
+        "--single_run", type=int, default=None, help="Run only one fold, e.g. --single_run 1."
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="Only check files and print the command; do not train."
+    )
     return parser.parse_args()
 
 
@@ -28,12 +31,13 @@ def required_files() -> list[Path]:
 
 def main() -> None:
     args = parse_args()
-    runtime_python = pytorch_python()
     missing = [path for path in required_files() if not path.exists()]
     if missing:
-        raise FileNotFoundError("Missing required files:\n" + "\n".join(f"  - {p}" for p in missing))
+        raise FileNotFoundError(
+            "Missing required files:\n" + "\n".join(f"  - {p}" for p in missing)
+        )
 
-    cmd = [str(runtime_python), str(TRAIN_SCRIPT)]
+    cmd = [sys.executable, str(TRAIN_SCRIPT)]
     if args.single_run is not None:
         cmd.extend(["--single_run", str(args.single_run)])
 

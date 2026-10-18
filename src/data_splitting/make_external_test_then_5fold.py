@@ -14,7 +14,9 @@ try:
     from rdkit import Chem
     from rdkit.Chem.Scaffolds import MurckoScaffold
 except Exception as exc:  # pragma: no cover
-    raise RuntimeError("This script requires RDKit. Run it in your Pytorch/RDKit environment.") from exc
+    raise RuntimeError(
+        "This script requires RDKit. Run it in your Pytorch/RDKit environment."
+    ) from exc
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -84,7 +86,9 @@ def scaffold_size_table(df: pd.DataFrame, scaffold_col: str) -> pd.DataFrame:
     )
 
 
-def select_small_scaffold_rows(df: pd.DataFrame, scaffold_col: str, target_n: int) -> Tuple[np.ndarray, pd.DataFrame]:
+def select_small_scaffold_rows(
+    df: pd.DataFrame, scaffold_col: str, target_n: int
+) -> Tuple[np.ndarray, pd.DataFrame]:
     scaffold_sizes = scaffold_size_table(df, scaffold_col)
     selected_scaffolds: List[str] = []
     selected_n = 0
@@ -98,9 +102,13 @@ def select_small_scaffold_rows(df: pd.DataFrame, scaffold_col: str, target_n: in
     return df[scaffold_col].isin(selected_scaffolds).to_numpy(), selected_table
 
 
-def random_rows_from_remaining(remaining_indices: np.ndarray, target_n: int, seed: int) -> np.ndarray:
+def random_rows_from_remaining(
+    remaining_indices: np.ndarray, target_n: int, seed: int
+) -> np.ndarray:
     if target_n > len(remaining_indices):
-        raise ValueError(f"Cannot select {target_n} random rows from only {len(remaining_indices)} remaining rows.")
+        raise ValueError(
+            f"Cannot select {target_n} random rows from only {len(remaining_indices)} remaining rows."
+        )
     rng = np.random.default_rng(seed)
     return np.sort(rng.choice(remaining_indices, size=target_n, replace=False))
 
@@ -155,7 +163,11 @@ def value_counts_dict(series: pd.Series) -> Dict[str, int]:
 
 
 def property_non_null_counts(df: pd.DataFrame) -> Dict[str, int]:
-    return {prop: int(pd.to_numeric(df[prop], errors="coerce").notna().sum()) for prop in PROPERTIES if prop in df.columns}
+    return {
+        prop: int(pd.to_numeric(df[prop], errors="coerce").notna().sum())
+        for prop in PROPERTIES
+        if prop in df.columns
+    }
 
 
 def validate_no_overlap(parts: Dict[str, pd.DataFrame]) -> None:
@@ -165,7 +177,9 @@ def validate_no_overlap(parts: Dict[str, pd.DataFrame]) -> None:
         for right in names[i + 1 :]:
             overlap = index_sets[left] & index_sets[right]
             if overlap:
-                raise RuntimeError(f"Unexpected row overlap between {left} and {right}: {len(overlap)} rows.")
+                raise RuntimeError(
+                    f"Unexpected row overlap between {left} and {right}: {len(overlap)} rows."
+                )
 
 
 def make_splits(

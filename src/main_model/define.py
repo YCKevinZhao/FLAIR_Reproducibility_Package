@@ -73,7 +73,13 @@ def _edge_attr_to_gcn_weight(edge_attr: torch.Tensor | None) -> torch.Tensor | N
 class _BaseGraphEncoder(nn.Module):
     """。 mean / attention  pooling。"""
 
-    def __init__(self, dropout: float = 0.0, activation: str = "relu", use_bn: bool = True, pooling: str = "mean"):
+    def __init__(
+        self,
+        dropout: float = 0.0,
+        activation: str = "relu",
+        use_bn: bool = True,
+        pooling: str = "mean",
+    ):
         super().__init__()
         pooling = str(pooling).lower()
         if pooling not in {"mean", "attention"}:
@@ -143,9 +149,11 @@ class FlexibleGCNEncoder(_BaseGraphEncoder):
         self.num_layers = len(hidden_dims)
 
         self.convs = nn.ModuleList([GCNConv(dims[i], dims[i + 1]) for i in range(self.num_layers)])
-        self.bns = nn.ModuleList(
-            [nn.BatchNorm1d(dims[i + 1]) for i in range(self.num_layers)]
-        ) if self.use_bn else nn.ModuleList()
+        self.bns = (
+            nn.ModuleList([nn.BatchNorm1d(dims[i + 1]) for i in range(self.num_layers)])
+            if self.use_bn
+            else nn.ModuleList()
+        )
 
         final_dim = hidden_dims[-1]
         self.proj = nn.Linear(final_dim, out_dim) if out_dim is not None else None

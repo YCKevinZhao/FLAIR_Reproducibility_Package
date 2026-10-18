@@ -53,11 +53,6 @@ ERROR_LOSS_SMOOTH_WIDTH_BY_PROPERTY = {
     "plqy": 0.015,
 }
 
-ERROR_MODEL_MIN_SAMPLES = 20
-
-
-
-
 
 AE_FEATURE_N_JOBS = max(1, min(8, (os.cpu_count() or 2) - 1))
 AE_FEATURE_BACKEND = "threading"

@@ -3,9 +3,8 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
+import sys
 from pathlib import Path
-
-from _runtime import pytorch_python
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -21,7 +20,9 @@ TEST_LABELS_CSV = ROOT / "results" / "intermediate" / "test_labels_ae_pre.csv"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Step 2: create a sealed 85/15 split and extract AE features.")
+    parser = argparse.ArgumentParser(
+        description="Step 2: create a sealed 85/15 split and extract AE features."
+    )
     parser.add_argument(
         "--ae_pre_test_csv",
         default=None,
@@ -32,13 +33,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feature_n_jobs", type=int, default=8)
     parser.add_argument("--feature_backend", choices=["threading", "process"], default="threading")
     parser.add_argument("--feature_chunk_size", type=int, default=512)
-    parser.add_argument("--rebuild_merged_split", action="store_true", help="Force a fresh canonical-pair grouped 85/15 split.")
+    parser.add_argument(
+        "--rebuild_merged_split",
+        action="store_true",
+        help="Force a fresh canonical-pair grouped 85/15 split.",
+    )
     parser.add_argument(
         "--reuse_intermediate_cache",
         action="store_true",
         help="Reuse Step 2 prediction/feature caches. Disabled by default for reproducibility.",
     )
-    parser.add_argument("--check", action="store_true", help="Only check files and print the command; do not extract.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Only check files and print the command; do not extract.",
+    )
     return parser.parse_args()
 
 
@@ -58,7 +67,6 @@ def required_files() -> list[Path]:
 
 def main() -> None:
     args = parse_args()
-    runtime_python = pytorch_python()
     missing = [path for path in required_files() if not path.exists()]
     if missing:
         raise FileNotFoundError(
@@ -67,7 +75,7 @@ def main() -> None:
         )
 
     cmd = [
-        str(runtime_python),
+        sys.executable,
         str(EXTRACT_SCRIPT),
         "--split",
         "ae",

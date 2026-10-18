@@ -29,22 +29,6 @@ def get_module_dtype(module) -> torch.dtype:
         return torch.float32
 
 
-def safe_mean(values: list[float]) -> float:
-    if len(values) == 0:
-        return float("nan")
-    return float(sum(values) / len(values))
-
-
-def safe_mean_vector(values: list[np.ndarray], dim: int = 4) -> np.ndarray:
-    if len(values) == 0:
-        return np.full((dim,), np.nan, dtype=float)
-
-    arr = np.asarray(values, dtype=float)
-    with np.errstate(invalid="ignore"):
-        out = np.nanmean(arr, axis=0)
-    return out.astype(float)
-
-
 def _get_solvent_feat(batch) -> torch.Tensor:
     if hasattr(batch, "solvent_feat"):
         feat = batch.solvent_feat
@@ -79,7 +63,9 @@ def _get_solvent_graph_output(
 
     work_device = ensure_same_device(system.mol_encoder, system.mlp, system.sol_encoder)
     if getattr(system, "use_fusion_self_attention", False):
-        work_device = ensure_same_device(system.mol_encoder, system.mlp, system.sol_encoder, system.fusion_encoder)
+        work_device = ensure_same_device(
+            system.mol_encoder, system.mlp, system.sol_encoder, system.fusion_encoder
+        )
     work_dtype = get_module_dtype(system.mlp)
 
     sol_x = batch.solvent_x.to(device=work_device, dtype=work_dtype, non_blocking=True)
@@ -92,7 +78,9 @@ def _get_solvent_graph_output(
 
     use_edge_attr = bool(getattr(system, "use_solvent_edge_attr", False))
     if use_edge_attr and hasattr(batch, "solvent_edge_attr"):
-        sol_edge_attr = batch.solvent_edge_attr.to(device=work_device, dtype=work_dtype, non_blocking=True)
+        sol_edge_attr = batch.solvent_edge_attr.to(
+            device=work_device, dtype=work_dtype, non_blocking=True
+        )
     else:
         sol_edge_attr = None
 
@@ -133,13 +121,10 @@ def build_x_vec(batch, system: SimpleNamespace) -> torch.Tensor:
     use_fusion = bool(getattr(system, "use_fusion_self_attention", False))
 
     if use_fusion:
-        
+
         mol_vec, solute_node_tokens = system.mol_encoder(data=batch, return_node_embeddings=True)
         if solute_node_tokens is None:
-            raise ValueError(
-                " mol_encoder  solute_node_tokens，"
-                " token-level Self-Attention。"
-            )
+            raise ValueError(" mol_encoder  solute_node_tokens，" " token-level Self-Attention。")
 
         if not getattr(system, "use_solvent_graph_encoder", False):
             raise ValueError(
@@ -171,7 +156,9 @@ def build_x_vec(batch, system: SimpleNamespace) -> torch.Tensor:
         if getattr(system, "use_solvent_graph_encoder", False):
             sol_vec = _get_solvent_graph_vec(batch, system)
         else:
-            sol_vec = _get_solvent_feat(batch).to(device=work_device, dtype=work_dtype, non_blocking=True)
+            sol_vec = _get_solvent_feat(batch).to(
+                device=work_device, dtype=work_dtype, non_blocking=True
+            )
 
     if mol_vec.device != work_device or mol_vec.dtype != work_dtype:
         mol_vec = mol_vec.to(device=work_device, dtype=work_dtype, non_blocking=True)
@@ -180,8 +167,12 @@ def build_x_vec(batch, system: SimpleNamespace) -> torch.Tensor:
         sol_vec = sol_vec.to(device=work_device, dtype=work_dtype, non_blocking=True)
 
     if use_fusion:
-        solute_node_tokens = solute_node_tokens.to(device=work_device, dtype=work_dtype, non_blocking=True)
-        solvent_node_tokens = solvent_node_tokens.to(device=work_device, dtype=work_dtype, non_blocking=True)
+        solute_node_tokens = solute_node_tokens.to(
+            device=work_device, dtype=work_dtype, non_blocking=True
+        )
+        solvent_node_tokens = solvent_node_tokens.to(
+            device=work_device, dtype=work_dtype, non_blocking=True
+        )
         solute_batch = solute_batch.to(device=work_device, non_blocking=True)
         solvent_batch = solvent_batch.to(device=work_device, non_blocking=True)
 
@@ -193,18 +184,17 @@ def build_x_vec(batch, system: SimpleNamespace) -> torch.Tensor:
         )
 
         if interaction_vec.device != work_device or interaction_vec.dtype != work_dtype:
-            interaction_vec = interaction_vec.to(device=work_device, dtype=work_dtype, non_blocking=True)
+            interaction_vec = interaction_vec.to(
+                device=work_device, dtype=work_dtype, non_blocking=True
+            )
 
-        
         x_vec = torch.cat([mol_vec, sol_vec, interaction_vec], dim=1)
     else:
-        
+
         x_vec = torch.cat([mol_vec, sol_vec], dim=1)
 
     if x_vec.ndim != 2 or x_vec.size(1) != system.mlp_input_dim:
-        raise ValueError(
-            f"build_x_vec ： [B, {system.mlp_input_dim}]， {tuple(x_vec.shape)}"
-        )
+        raise ValueError(f"build_x_vec ： [B, {system.mlp_input_dim}]， {tuple(x_vec.shape)}")
 
     return x_vec
 
@@ -226,8 +216,14 @@ def _get_target_scale_and_bias(loader) -> tuple[torch.Tensor | None, torch.Tenso
     target_std = getattr(dataset, "target_std", None)
     target_mean = getattr(dataset, "target_mean", None)
 
-    std_tensor = None if target_std is None else torch.as_tensor(target_std, dtype=torch.float32).view(1, -1)
-    mean_tensor = None if target_mean is None else torch.as_tensor(target_mean, dtype=torch.float32).view(1, -1)
+    std_tensor = (
+        None if target_std is None else torch.as_tensor(target_std, dtype=torch.float32).view(1, -1)
+    )
+    mean_tensor = (
+        None
+        if target_mean is None
+        else torch.as_tensor(target_mean, dtype=torch.float32).view(1, -1)
+    )
     return std_tensor, mean_tensor
 
 
@@ -360,7 +356,9 @@ def _masked_mae_with_stats(
         if m.any():
             mae_task_list.append(abs_err[m, j].mean())
         else:
-            mae_task_list.append(torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype))
+            mae_task_list.append(
+                torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype)
+            )
 
     mae_task = torch.stack(mae_task_list)
 
@@ -400,7 +398,9 @@ def _masked_rmse_with_stats(
         if m.any():
             rmse_task_list.append(torch.sqrt(sq_err[m, j].mean()))
         else:
-            rmse_task_list.append(torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype))
+            rmse_task_list.append(
+                torch.tensor(float("nan"), device=y_true.device, dtype=y_true.dtype)
+            )
 
     rmse_task = torch.stack(rmse_task_list)
 
@@ -764,8 +764,7 @@ def train_experiment(system: SimpleNamespace, train_loader, val_loader, test_loa
     min_epochs = int(getattr(cfg, "MIN_EPOCHS", 200))
     if int(cfg.EPOCHS) < min_epochs:
         raise ValueError(
-            f"cfg.EPOCHS={cfg.EPOCHS}  MIN_EPOCHS={min_epochs}，"
-            f" {min_epochs}  epoch。"
+            f"cfg.EPOCHS={cfg.EPOCHS}  MIN_EPOCHS={min_epochs}，" f" {min_epochs}  epoch。"
         )
 
     for epoch in range(1, cfg.EPOCHS + 1):
@@ -816,35 +815,47 @@ def train_experiment(system: SimpleNamespace, train_loader, val_loader, test_loa
 
         print(
             "  Train task MAE:",
-            ", ".join([f"{name}={train_task_mae[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={train_task_mae[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
         print(
             "  Train task RMSE:",
-            ", ".join([f"{name}={train_task_rmse[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={train_task_rmse[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
         print(
             "  Train task R2:",
-            ", ".join([f"{name}={train_task_r2[i]:.4f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={train_task_r2[i]:.4f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
         print(
             "  Val   task MAE:",
-            ", ".join([f"{name}={val_task_mae[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join([f"{name}={val_task_mae[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]),
         )
         print(
             "  Val   task RMSE:",
-            ", ".join([f"{name}={val_task_rmse[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={val_task_rmse[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
         print(
             "  Val   task R2:",
-            ", ".join([f"{name}={val_task_r2[i]:.4f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join([f"{name}={val_task_r2[i]:.4f}" for i, name in enumerate(cfg.TARGET_NAMES)]),
         )
         print(
             "  Train task Loss:",
-            ", ".join([f"{name}={train_task_loss[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={train_task_loss[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
         print(
             "  Val   task Loss:",
-            ", ".join([f"{name}={val_task_loss[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={val_task_loss[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
 
         _step_scheduler(system, val_loss=val_loss, val_r2=val_r2)
@@ -862,10 +873,18 @@ def train_experiment(system: SimpleNamespace, train_loader, val_loader, test_loa
                         "epoch": epoch,
                         "mol_encoder": system.mol_encoder.state_dict(),
                         "sol_encoder": system.sol_encoder.state_dict(),
-                        "fusion_encoder": system.fusion_encoder.state_dict() if getattr(system, "use_fusion_self_attention", False) else None,
+                        "fusion_encoder": (
+                            system.fusion_encoder.state_dict()
+                            if getattr(system, "use_fusion_self_attention", False)
+                            else None
+                        ),
                         "mlp": system.mlp.state_dict(),
                         "optimizer": system.optimizer.state_dict(),
-                        "scheduler": system.scheduler.state_dict() if getattr(system, "scheduler", None) is not None else None,
+                        "scheduler": (
+                            system.scheduler.state_dict()
+                            if getattr(system, "scheduler", None) is not None
+                            else None
+                        ),
                         "val_r2": best_val_r2,
                         "device": str(system.device),
                         "cfg": _build_checkpoint_cfg(system, cfg),
@@ -902,7 +921,10 @@ def train_experiment(system: SimpleNamespace, train_loader, val_loader, test_loa
         system.mol_encoder.load_state_dict(best_ckpt["mol_encoder"])
         if "sol_encoder" in best_ckpt:
             system.sol_encoder.load_state_dict(best_ckpt["sol_encoder"], strict=False)
-        if getattr(system, "use_fusion_self_attention", False) and best_ckpt.get("fusion_encoder") is not None:
+        if (
+            getattr(system, "use_fusion_self_attention", False)
+            and best_ckpt.get("fusion_encoder") is not None
+        ):
             system.fusion_encoder.load_state_dict(best_ckpt["fusion_encoder"], strict=False)
         system.mlp.load_state_dict(best_ckpt["mlp"])
 
@@ -915,22 +937,30 @@ def train_experiment(system: SimpleNamespace, train_loader, val_loader, test_loa
         test_task_mae = test_metrics["mae_task"]
         test_task_rmse = test_metrics["rmse_task"]
         test_task_r2 = test_metrics["r2_task"]
-        print(f"\n[Test] loss={test_loss:.6f} test_mae={test_mae:.6f} test_rmse={test_rmse:.6f} test_r2={test_r2:.4f}")
+        print(
+            f"\n[Test] loss={test_loss:.6f} test_mae={test_mae:.6f} test_rmse={test_rmse:.6f} test_r2={test_r2:.4f}"
+        )
         print(
             "  Test  task MAE:",
-            ", ".join([f"{name}={test_task_mae[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={test_task_mae[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
         print(
             "  Test  task RMSE:",
-            ", ".join([f"{name}={test_task_rmse[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={test_task_rmse[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
         print(
             "  Test  task R2:",
-            ", ".join([f"{name}={test_task_r2[i]:.4f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join([f"{name}={test_task_r2[i]:.4f}" for i, name in enumerate(cfg.TARGET_NAMES)]),
         )
         print(
             "  Test  task Loss:",
-            ", ".join([f"{name}={test_task_loss[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)])
+            ", ".join(
+                [f"{name}={test_task_loss[i]:.6f}" for i, name in enumerate(cfg.TARGET_NAMES)]
+            ),
         )
 
     invalid_stats_kwargs = {}

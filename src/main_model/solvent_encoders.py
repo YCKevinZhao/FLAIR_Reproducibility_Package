@@ -14,9 +14,6 @@ from rdkit.Chem import Descriptors, rdFingerprintGenerator
 CGSD_NAMES = ["ET30", "SA", "SB", "SdP", "SP"]
 
 
-
-
-
 def canonicalize_smiles(smiles: Optional[str]) -> Optional[str]:
     """ SMILES ； None。"""
     if smiles is None:
@@ -60,9 +57,6 @@ def _to_float32_1d(x: Sequence[float] | np.ndarray) -> np.ndarray:
     return np.asarray(x, dtype=np.float32).reshape(-1)
 
 
-
-
-
 def morgan_fingerprint(
     smiles: Optional[str],
     radius: int = 4,
@@ -85,14 +79,7 @@ def morgan_fingerprint(
     return out.astype(np.float32, copy=False)
 
 
-
-
-
-DEFAULT_RDKIT_DESCRIPTOR_NAMES = [
-    name
-    for name, fn in Descriptors._descList
-    if callable(fn)
-]
+DEFAULT_RDKIT_DESCRIPTOR_NAMES = [name for name, fn in Descriptors._descList if callable(fn)]
 
 
 def available_rdkit_descriptor_names() -> list[str]:
@@ -106,7 +93,11 @@ def rdkit_descriptors(
     inf_value: float = 0.0,
 ) -> np.ndarray:
     """ SMILES  RDKit ，/ 0。 NaN/Inf 。"""
-    names = list(descriptor_names) if descriptor_names is not None else list(DEFAULT_RDKIT_DESCRIPTOR_NAMES)
+    names = (
+        list(descriptor_names)
+        if descriptor_names is not None
+        else list(DEFAULT_RDKIT_DESCRIPTOR_NAMES)
+    )
     funcs = []
     for name in names:
         fn = getattr(Descriptors, str(name), None)
@@ -138,9 +129,6 @@ def rdkit_descriptors(
     return _to_float32_1d(values)
 
 
-
-
-
 @dataclass
 class CGSDTable:
     by_smiles: Dict[str, np.ndarray]
@@ -154,9 +142,7 @@ class CGSDTable:
                 continue
             arr = _to_float32_1d(value)
             if arr.shape[0] != len(CGSD_NAMES):
-                raise ValueError(
-                    f"CGSD  {len(CGSD_NAMES)}， {arr.shape[0]}，smiles={key!r}"
-                )
+                raise ValueError(f"CGSD  {len(CGSD_NAMES)}， {arr.shape[0]}，smiles={key!r}")
             norm_smiles[canon] = arr
 
         norm_name: Dict[str, np.ndarray] = {}
@@ -166,9 +152,7 @@ class CGSDTable:
                 continue
             arr = _to_float32_1d(value)
             if arr.shape[0] != len(CGSD_NAMES):
-                raise ValueError(
-                    f"CGSD  {len(CGSD_NAMES)}， {arr.shape[0]}，name={key!r}"
-                )
+                raise ValueError(f"CGSD  {len(CGSD_NAMES)}， {arr.shape[0]}，name={key!r}")
             norm_name[nk] = arr
 
         self.by_smiles = norm_smiles
@@ -234,15 +218,12 @@ class CGSDTable:
         if on_missing == "zeros":
             return np.zeros((len(CGSD_NAMES),), dtype=np.float32)
 
-        raise KeyError(
-            f"CGSD : solvent_name={solvent_name!r}, smiles={smiles!r}"
-        )
+        raise KeyError(f"CGSD : solvent_name={solvent_name!r}, smiles={smiles!r}")
 
 
-
-
-
-def _normalize_include(include: str | Sequence[str] | None, solvent_mode: Optional[str] = None) -> list[str]:
+def _normalize_include(
+    include: str | Sequence[str] | None, solvent_mode: Optional[str] = None
+) -> list[str]:
     source = include if include is not None else solvent_mode
     if source is None:
         raise ValueError(" include  solvent_mode")
@@ -346,7 +327,6 @@ def encode_and_concat_solvent_features(
     rk = dict(rdkit_kwargs or {})
     ck = dict(cgsd_kwargs or {})
 
-    
     if "radius" not in mk:
         mk["radius"] = morgan_radius
     if "n_bits" not in mk:
@@ -410,7 +390,11 @@ def get_solvent_feature_dim(
         if part == "morgan":
             dim += int(morgan_n_bits)
         elif part == "rdkit":
-            dim += len(list(descriptor_names) if descriptor_names is not None else DEFAULT_RDKIT_DESCRIPTOR_NAMES)
+            dim += len(
+                list(descriptor_names)
+                if descriptor_names is not None
+                else DEFAULT_RDKIT_DESCRIPTOR_NAMES
+            )
         elif part == "cgsd":
             dim += len(CGSD_NAMES)
         else:

@@ -110,7 +110,9 @@ def load_log_mlp_bundle(path: str | Path) -> dict[str, Any]:
     return bundle
 
 
-def predict_pre_ae(bundle: dict[str, Any], prop: str, features: pd.DataFrame | np.ndarray) -> np.ndarray:
+def predict_pre_ae(
+    bundle: dict[str, Any], prop: str, features: pd.DataFrame | np.ndarray
+) -> np.ndarray:
     if prop not in EXPECTED_PROPERTIES:
         raise KeyError(prop)
     runtime_models = bundle.get("_runtime_models")

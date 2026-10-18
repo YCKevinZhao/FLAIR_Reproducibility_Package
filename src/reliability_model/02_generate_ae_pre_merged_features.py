@@ -13,7 +13,7 @@ from rdkit import Chem, rdBase
 
 import importlib
 
-from main_model_inference import MyPredictionModel, auto_dataset_paths, log, predict_csv_with_checkpoint
+from ae_from_pt import MyPredictionModel, auto_dataset_paths, log, predict_csv_with_checkpoint
 from data_utils import (
     FEATURE_NAMES_SOLUTE,
     TANIMOTO_NEIGHBOR_FEATURE_NAMES,
@@ -26,7 +26,11 @@ from data_utils import (
     standardize_columns,
     tanimoto_neighborhood_features,
 )
-from rank_ensemble_features import FINAL_FEATURE_COLUMNS, NEIGHBOR_FEATURE_COLUMNS, engineer_rank_ensemble_features
+from rank_ensemble_features import (
+    FINAL_FEATURE_COLUMNS,
+    NEIGHBOR_FEATURE_COLUMNS,
+    engineer_rank_ensemble_features,
+)
 
 offline = importlib.import_module("01_generate_offline_features")
 
@@ -72,7 +76,10 @@ def parse_args() -> argparse.Namespace:
         "--test_labels_output_csv",
         default=str(RESULTS_DIR / "test_labels_ae_pre.csv"),
     )
-    parser.add_argument("--summary_json", default=str(RESULTS_DIR / "offline_feature_generation_summary_ae_pre.json"))
+    parser.add_argument(
+        "--summary_json",
+        default=str(RESULTS_DIR / "offline_feature_generation_summary_ae_pre.json"),
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--test_fraction", type=float, default=0.15)
     parser.add_argument("--feature_n_jobs", type=int, default=8)
@@ -100,7 +107,9 @@ def split_labels(test_fraction: float) -> Tuple[str, str]:
     return f"calibration{100 - test_percent}", f"test{test_percent}"
 
 
-def resolve_path(path: str | None, *, default: Path | None = None, required: bool = True) -> Path | None:
+def resolve_path(
+    path: str | None, *, default: Path | None = None, required: bool = True
+) -> Path | None:
     if path is None:
         if default is None:
             return None
@@ -221,7 +230,9 @@ def validate_merged_split(
     if train_rows & test_rows:
         raise ValueError("Existing merged split has overlapping _ae_pre_merged_row values.")
 
-    train_source_rows = set(zip(train_df["source_group"], train_df["_ae_pre_source_row"].astype(int)))
+    train_source_rows = set(
+        zip(train_df["source_group"], train_df["_ae_pre_source_row"].astype(int))
+    )
     test_source_rows = set(zip(test_df["source_group"], test_df["_ae_pre_source_row"].astype(int)))
     if train_source_rows & test_source_rows:
         raise ValueError("Existing merged split has source rows in both calibration and test.")
@@ -286,9 +297,9 @@ def write_merged_split_files(
     selected_rows = 0
     for group in group_names:
         group_size = int(group_sizes.loc[group])
-        if selected_rows < target_test_rows or abs(selected_rows + group_size - target_test_rows) < abs(
-            selected_rows - target_test_rows
-        ):
+        if selected_rows < target_test_rows or abs(
+            selected_rows + group_size - target_test_rows
+        ) < abs(selected_rows - target_test_rows):
             selected_groups.append(group)
             selected_rows += group_size
     test_mask = merged["_canonical_pair_key"].isin(selected_groups).to_numpy(dtype=bool)
@@ -333,11 +344,15 @@ def write_merged_split_files(
         "seed": int(seed),
         "test_fraction": float(test_fraction),
         **validation,
-        "source_group_counts": {str(k): int(v) for k, v in merged["source_group"].value_counts().items()},
+        "source_group_counts": {
+            str(k): int(v) for k, v in merged["source_group"].value_counts().items()
+        },
         "calibration_source_group_counts": {
             str(k): int(v) for k, v in train_df["source_group"].value_counts().items()
         },
-        "test_source_group_counts": {str(k): int(v) for k, v in test_df["source_group"].value_counts().items()},
+        "test_source_group_counts": {
+            str(k): int(v) for k, v in test_df["source_group"].value_counts().items()
+        },
     }
     manifest_path = out_dir / "AE_PRE_MERGED_split_manifest.json"
     manifest_tmp = manifest_path.with_suffix(".json.tmp")
@@ -379,8 +394,12 @@ def build_reference_info_once(reference_csv: Path, *, reuse_cache: bool) -> Dict
     valid_mols = [mol for mol in mols if mol is not None]
     if not valid_mols:
         raise ValueError(f"No valid molecules in {reference_csv}")
-    neighbor_smiles_column = "_canonical_smiles" if "_canonical_smiles" in ref_df.columns else "smiles"
-    neighbor_fps, neighbor_scaffolds = build_unique_tanimoto_reference(ref_df[neighbor_smiles_column])
+    neighbor_smiles_column = (
+        "_canonical_smiles" if "_canonical_smiles" in ref_df.columns else "smiles"
+    )
+    neighbor_fps, neighbor_scaffolds = build_unique_tanimoto_reference(
+        ref_df[neighbor_smiles_column]
+    )
     fps = neighbor_fps
     scaffold_set = set()
     scaffold_fps = []
@@ -477,10 +496,14 @@ def load_or_build_shared_features(
                         *neighbor_values,
                     ]
             rows.append([idx, *feature_cache[smiles]])
-        feature_names = list(FEATURE_NAMES_SOLUTE) + [
-            "solute_scaffold_in_train_and_val",
-            "solute_scaffold_train_and_val_count",
-        ] + list(TANIMOTO_NEIGHBOR_FEATURE_NAMES)
+        feature_names = (
+            list(FEATURE_NAMES_SOLUTE)
+            + [
+                "solute_scaffold_in_train_and_val",
+                "solute_scaffold_train_and_val_count",
+            ]
+            + list(TANIMOTO_NEIGHBOR_FEATURE_NAMES)
+        )
         shared = pd.DataFrame(rows, columns=["row_index", *feature_names])
     else:
         shared, feature_names = offline.build_shared_solute_feature_frame(
@@ -497,7 +520,9 @@ def load_or_build_shared_features(
     return shared[keep_cols], feature_names
 
 
-def shared_for_prediction(pred_df: pd.DataFrame, shared_features: pd.DataFrame, feature_names: List[str]) -> pd.DataFrame:
+def shared_for_prediction(
+    pred_df: pd.DataFrame, shared_features: pd.DataFrame, feature_names: List[str]
+) -> pd.DataFrame:
     pred_df = offline.standardize_columns(pred_df.copy())
     used_rows = shared_features["row_index"].to_numpy(dtype=int)
     sub = pred_df.iloc[used_rows].reset_index(drop=True)
@@ -560,11 +585,15 @@ def generate_features(args: argparse.Namespace) -> Dict:
             "seed": None,
             "test_fraction": float(len(test_df) / len(combined)),
             **validation,
-            "source_group_counts": {str(k): int(v) for k, v in combined["source_group"].value_counts().items()},
+            "source_group_counts": {
+                str(k): int(v) for k, v in combined["source_group"].value_counts().items()
+            },
             "calibration_source_group_counts": {
                 str(k): int(v) for k, v in train_df["source_group"].value_counts().items()
             },
-            "test_source_group_counts": {str(k): int(v) for k, v in test_df["source_group"].value_counts().items()},
+            "test_source_group_counts": {
+                str(k): int(v) for k, v in test_df["source_group"].value_counts().items()
+            },
             "reused_existing_merged_split": True,
         }
         log(f"[AE_PRE] reusing validated fixed split files: {train_csv.name}, {test_csv.name}")
@@ -624,8 +653,12 @@ def generate_features(args: argparse.Namespace) -> Dict:
 
         fold_summary = {"fold": fold_idx, "checkpoint_path": checkpoint_path, "sources": []}
         for split_name, csv_path in [("calibration", train_csv), ("test", test_csv)]:
-            feature_rows_csv = results_dir / f"offline_feature_rows_ae_pre_fold{fold_idx}_{split_name}.csv"
-            prediction_csv = results_dir / f"offline_predictions_ae_pre_fold{fold_idx}_{split_name}.csv"
+            feature_rows_csv = (
+                results_dir / f"offline_feature_rows_ae_pre_fold{fold_idx}_{split_name}.csv"
+            )
+            prediction_csv = (
+                results_dir / f"offline_predictions_ae_pre_fold{fold_idx}_{split_name}.csv"
+            )
             feature_df = None
             if args.reuse_intermediate_cache and feature_rows_csv.exists():
                 cached_feature_df = pd.read_csv(feature_rows_csv)
@@ -699,23 +732,35 @@ def generate_features(args: argparse.Namespace) -> Dict:
         .sort_values(["property", "row_index"])
         .reset_index(drop=True)
     )
-    
-    target_columns = ["y_true", "ae", "true_ae", "abs_error", "log_abs_error", "sample_weight", "epsilon"]
+
+    target_columns = [
+        "y_true",
+        "ae",
+        "true_ae",
+        "abs_error",
+        "log_abs_error",
+        "sample_weight",
+        "epsilon",
+    ]
     test_mask = feature_df["split"] == "test"
     feature_df.loc[test_mask, target_columns] = np.nan
     log("[AE_PRE] engineering final scaffold, fold-uncertainty, and calibration features")
     feature_df = engineer_rank_ensemble_features(feature_df, str(train_and_val_csv))
-    missing_final_features = [column for column in FINAL_FEATURE_COLUMNS if column not in feature_df.columns]
+    missing_final_features = [
+        column for column in FINAL_FEATURE_COLUMNS if column not in feature_df.columns
+    ]
     if missing_final_features:
-        raise ValueError(f"Step 02 output is missing final Reliability features: {missing_final_features}")
+        raise ValueError(f"Step 02 output is missing final RF features: {missing_final_features}")
     feature_matrix = feature_df[FINAL_FEATURE_COLUMNS].to_numpy(dtype=float)
     if not np.isfinite(feature_matrix).all():
         bad_columns = [
             column
             for column in FINAL_FEATURE_COLUMNS
-            if not np.isfinite(pd.to_numeric(feature_df[column], errors="coerce").to_numpy(dtype=float)).all()
+            if not np.isfinite(
+                pd.to_numeric(feature_df[column], errors="coerce").to_numpy(dtype=float)
+            ).all()
         ]
-        raise ValueError(f"Step 02 generated non-finite final Reliability features: {bad_columns}")
+        raise ValueError(f"Step 02 generated non-finite final RF features: {bad_columns}")
     calibration_df = feature_df[feature_df["split"] == "calibration"].copy()
     test_feature_columns = [
         "fold",
@@ -731,12 +776,16 @@ def generate_features(args: argparse.Namespace) -> Dict:
     test_features_df = feature_df.loc[feature_df["split"] == "test", test_feature_columns].copy()
     forbidden_test_columns = set(target_columns) & set(test_features_df.columns)
     if forbidden_test_columns:
-        raise ValueError(f"Held-out Test features contain forbidden label columns: {sorted(forbidden_test_columns)}")
+        raise ValueError(
+            f"Held-out Test features contain forbidden label columns: {sorted(forbidden_test_columns)}"
+        )
     if test_features_df.duplicated(["property", "row_index", "fold"]).any():
         raise ValueError("Held-out Test features contain duplicate property/row_index/fold keys.")
     if test_labels_df.duplicated(["property", "row_index"]).any():
         raise ValueError("Held-out Test labels contain duplicate property/row_index keys.")
-    test_feature_keys = set(map(tuple, test_features_df[["property", "row_index"]].drop_duplicates().to_numpy()))
+    test_feature_keys = set(
+        map(tuple, test_features_df[["property", "row_index"]].drop_duplicates().to_numpy())
+    )
     test_label_keys = set(map(tuple, test_labels_df[["property", "row_index"]].to_numpy()))
     if test_feature_keys != test_label_keys:
         raise ValueError("Held-out Test feature and label keys do not match exactly.")
@@ -757,7 +806,7 @@ def generate_features(args: argparse.Namespace) -> Dict:
     summary["calibration_feature_rows"] = int(len(calibration_df))
     summary["test_feature_rows"] = int(len(test_features_df))
     summary["test_label_rows"] = int(len(test_labels_df))
-    summary["final_reliability_feature_columns"] = list(FINAL_FEATURE_COLUMNS)
+    summary["final_rf_feature_columns"] = list(FINAL_FEATURE_COLUMNS)
     summary["feature_reference_scope"] = {
         "tanimoto_and_scaffold_counts": "TrainAndVal.csv only",
         "historical_residual_statistics": "calibration split only",

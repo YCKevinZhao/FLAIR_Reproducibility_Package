@@ -1,102 +1,132 @@
 # FLAIR reproducibility package
 
-Version 3 Log-MLP-HPO100 (2026-08-25).
+Version 5. Reliability workflows use MLP models only.
 
-Repository: <https://github.com/YCKevinZhao/FLAIR_Reproducibility_Package>
-
-This package contains the data splits, source code, pretrained weights, trained five-fold main models, property-specific reliability model, and result tables associated with the FLAIR manuscript.
-
-## License status
-
-**No public reuse license has been selected by the copyright holders.**
-
-`LICENSE` states that no public reuse license has yet been chosen and that this
-distribution grants no permission to reuse, modify, or redistribute its contents
-beyond manuscript evaluation. `CITATION.cff` still carries placeholder authorship.
-The copyright holders must select explicit code and data licenses, and confirm that
-redistribution of every source dataset and pretrained weight is permitted, before
-this repository can be treated as openly licensed. See `LICENSE`, `CITATION.cff`,
-and `data/README.md`.
+This package contains source code, source datasets, fixed main-model data splits, and seven default runtime weight files for the FLAIR manuscript. It omits generated results, deployment caches, training logs, and historical experiment weights. Colab supplies the separate result artifacts needed for historical comparisons.
 
 ## Scientific scope
 
-The main model predicts absorption wavelength (`abs`), emission wavelength (`emi`), photoluminescence quantum yield (`plqy`), and log10 molar extinction coefficient (`em`). The reliability model predicts the absolute error (AE) expected for each main-model prediction.
+The main model predicts absorption wavelength (`abs`), emission wavelength (`emi`), photoluminescence quantum yield (`plqy`), and log10 molar extinction coefficient (`em`). The reliability model estimates the absolute error (AE) of each property prediction.
 
-The reported Test15 set is a fixed held-out split of the merged evaluation pool. It is not a completely independent external test set. File names therefore use `holdout` rather than `external`.
+Test15 is a fixed held-out split of the merged evaluation pool, not a completely independent external test set. Data filenames use `holdout` to reflect this boundary.
 
-The only deployable reliability model is `models/reliability_model/mlp_log_hpo100_reliability_model_bundle.pt`. It uses the 32-feature solvent-augmented representation and four property-specific MLPs trained with sample-weighted L1 loss in `log(AE + epsilon)` space. One hundred shared hyperparameter candidates were evaluated by leakage-safe five-fold canonical solute-solvent GroupKFold inside Calibration85; Test15 was excluded from selection. Trial 65 was selected with weighted validation Spearman 0.631056. The frozen Test15 weighted Spearman is 0.658998 and weighted AE-MAE is 10.046812.
+The default checkpoint is `models/reliability_model/mlp_log_hpo100_reliability_model_bundle.pt`. It contains four property-specific Log-MLPs using 32 solvent-augmented features and sample-weighted L1 loss in `log(AE + epsilon)` space.
+
+The default model was selected from a search that evaluated 100 shared hyperparameter candidates using leakage-safe five-fold canonical solute-solvent GroupKFold within Calibration85. Test15 was excluded from selection. Trial 65 had weighted validation Spearman 0.631056. The recorded Test15 weighted Spearman was 0.658998, with weighted AE-MAE 10.046812. These metrics refer to the default checkpoint’s model-selection run. Result tables are available separately through Colab. Step 3 trains an ensemble with manually supplied parameters.
 
 ## Directory layout
 
-- `scripts/`: ordered workflow entry points.
-- `src/main_model/`: main neural-network model implementation.
-- `src/reliability_model/`: feature extraction, HPO, reliability-model training, and inference.
-- `src/data_splitting/`: deterministic held-out and five-fold split generation and validation.
-- `data/source/`: source datasets used by the workflow.
-- `data/splits/deployment/`: the runtime deployment table with fixed `cv_fold` assignments plus its fixed test table.
-- `data/splits/development/`: alternative development partitions retained for analysis; the ordered runtime workflow does not read them.
-- `data/templates/`: prediction input template.
-- `environment/`: Conda and pip dependency installation commands.
-- `models/pretrained/`: pretrained MORE encoder weights used by FLAIR.
-- `models/main_model/`: five trained fold checkpoints and their training records.
-- `models/reliability_model/`: deployable reliability models and deployment cache.
-- `results/final/mlp_log_hpo100_20260824/`: final Test15 metrics, predictions, audit rows, and validation record.
-- `results/hpo/mlp_log_hpo100_20260824/`: the complete 100-candidate grouped-CV search.
-- `results/intermediate/`: reproducibility intermediates generated during reliability feature extraction.
-- `extra/`: supplementary read-only code copies that are **not** part of the ordered
-  v3 workflow and are not needed to run Steps 1–4. See `extra/README.md`.
+- `scripts/`: workflow wrappers and the release builder.
+- `src/main_model/`: main-model training and inference.
+- `src/reliability_model/`: feature preparation, manual MLP ensemble training, and inference.
+- `src/data_splitting/`: split generation and validation.
+- `data/source/`: source datasets and separate evaluation cohorts.
+- `data/splits/deployment/`: main-model deployment and test tables, including fixed `cv_fold` assignments.
+- `data/splits/development/`: alternative Random/Scaffold partitions for analysis.
+- `data/templates/`: prediction input and manual MLP parameter examples.
+- `environment/`: dependency installation commands.
+- `models/`: seven default runtime weight files.
+- `results/`: generated feature and evaluation outputs; absent from this distribution.
+- `data/cache/`: runtime deployment caches; generated when needed and omitted from releases.
 
-## Large files
+## Weight files
 
-Model weights, cached objects, and the oversized calibration CSV are committed as
-**ordinary files**, not through Git LFS. A single clone yields the real binaries and a
-fully runnable package:
+| Path under `models/` | Purpose |
+|---|---|
+| `pretrained/MORE.pth` | Downloaded pretrained encoder required by the current main-model workflow |
+| `main_model/fold_01/best_model.pt` through `fold_05/best_model.pt` | Five main-model folds; reliability inference uses their mean predictions |
+| `reliability_model/mlp_log_hpo100_reliability_model_bundle.pt` | Default single-model Log-MLP bundle |
 
-```bash
-git clone https://github.com/YCKevinZhao/FLAIR_Reproducibility_Package.git
-```
+The predictor builds its cache under `data/cache/` using calibration features and the deployment reference table.
 
-No `git lfs pull` step is required. The largest tracked file is 67 MB, which is below
-GitHub's 100 MB per-file limit; the repository is roughly 470 MB in total.
+`MORE.pth` is a required input. If a release distributes weights through a download link, place the file at `models/pretrained/MORE.pth` and check its SHA256 against the release information.
+
+## Held-out solvent benchmark
+
+`spec_solv.csv` contains 144 records across 12 solvent identities for the held-out-solvent benchmark. The manuscript reports 165 reserved records before PBS exclusion. This CSV excludes the 21 PBS (phosphate-buffered saline) records because PBS is a buffered mixture that cannot be represented as a single solvent SMILES for the current model input. The 144 records therefore describe the benchmark after PBS exclusion. Keep this benchmark separate from main-model training and Reliability Calibration85/Test15; its existing `split` labels do not define the held-out-solvent evaluation.
+
+## Negative solvatochromism benchmark
+
+`data/source/negative_solvatochromism_38_compounds.csv` contains 38 compounds and 76 compound-solvent records, with one dichloromethane (DCM) and one toluene (TOL) record per compound. `Compound_ID` numbers the compounds from 1 to 38 in the supplied order; each DCM/TOL pair shares one ID. The table contains solute and solvent SMILES, experimental absorption/emission wavelengths, and the source article DOI. All column names and text entries are in English. Keep this cohort separate from model training and Reliability calibration.
 
 ## Environment
 
-All workflow wrappers are locked to this workstation's `Pytorch` Conda environment at `/opt/anaconda3/envs/Pytorch/bin/python3.10`. The validated environment uses Python 3.10, PyTorch 2.10.0 CPU, PyTorch Geometric 2.7.0, torch-scatter 2.1.2, scikit-learn 1.7.2, pandas 2.3.3, and NumPy 1.24.4. See `environment/pytorch_environment.txt` for the validation command.
+`environment/conda_install_dependencies.txt` contains commands for a Python 3.10 Conda environment named `Pytorch`, scientific Python and RDKit dependencies, and the CUDA 12.8 PyTorch/PyG stack. Run them in a shell with Conda initialized. The final import command checks the listed packages.
+
+These commands target NVIDIA CUDA systems. A separate CPU installation file is not included. The prediction wrapper can use another compatible environment name and checks imports before execution.
 
 ## Workflow
 
-Run commands from the package root:
+Run commands from the package root. The supplied main-model weights allow you to begin at Step 2; Step 1 retrains the five main models.
 
 ```bash
 python scripts/01_train_main_model.py --check
 python scripts/02_extract_reliability_features.py --check
-python scripts/03_train_reliability_model.py --check
-python scripts/04_predict_single.py --check
-python src/reliability_model/06_hpo_log_mlp_random.py --check
-```
-
-Remove `--check` to execute a stage. A full main-model retraining is computationally intensive. Step 3 reproduces the current Log-MLP model and its 100-candidate search; the search is resumable and writes each completed trial to `results/hpo/mlp_log_hpo100_20260824/trials.csv`.
-
-Validate the supplied fixed data splits with:
-
-```bash
 python src/data_splitting/check_generated_splits.py
 ```
 
-Example prediction:
+`--check` validates prerequisites without training or feature extraction. Remove it to execute a stage. Full main-model training is computationally intensive; a CUDA-capable GPU is recommended.
+
+Step 2 generates Calibration85/Test15 split files, feature tables, and labels under `results/intermediate/`. With no saved Reliability split files, it constructs the grouped split using the supplied inputs, seed, and test fraction. Reproducing historical metrics requires the matching split, input contents, weights, and environment. The deployment `cv_fold` assignments are a separate fixed main-model partition.
+
+After Step 2, the default prediction command is:
 
 ```bash
+python scripts/04_predict_single.py --check
 python scripts/04_predict_single.py --smiles "CCO" --solvent "O"
 ```
 
-## Reproducibility notes
+The wrapper requires `results/intermediate/calibration_features_ae_pre.csv` even when using the supplied default checkpoint. On first execution it builds the deployment cache. Prediction with the default checkpoint requires Steps 2 and 4.
 
-- Random seeds and model hyperparameters are stored in the scripts, checkpoints, HPO summaries, and final model bundle.
-- The Log-MLP HPO results and exact trial table are stored in `results/hpo/mlp_log_hpo100_20260824/`.
-- The five main-model folds are read from `data/splits/deployment/deployment.csv`: Fold *k* uses `cv_fold != k` for training and `cv_fold == k` for validation.
-- Paths stored in distributed CSV, JSON, and model metadata are relative to this package.
-- `scripts/05_build_release_package.py` generates `MANIFEST.sha256` for all distributed files except the manifest itself.
+## Manual reliability training
 
-## Before public release
+`scripts/03_train_reliability_model.py` forwards arguments to `src/reliability_model/03_train_log_mlp_cv5_ensemble.py`. This trains a five-fold Log-MLP ensemble, rebuilds target-derived features within each training fold, and averages member predictions in raw AE space. It writes ensemble weights to a separate run directory and leaves the default single-model checkpoint in place.
 
-The authors must replace the placeholder citation authorship in `CITATION.cff` and select an explicit code/data license in `LICENSE`. These legal and bibliographic choices cannot be inferred from the engineering files.
+Step 3 requires these inputs, which are omitted from the distribution:
+
+- `results/intermediate/calibration_features_ae_pre.csv`
+- `results/intermediate/test_features_ae_pre.csv`
+- `results/intermediate/test_labels_ae_pre.csv`
+- `results/final/mlp_log_hpo100_20260824/test15_evaluated_rows.csv`
+
+Step 2 generates the three intermediate tables. Download the matching default-model Test15 comparison table from Colab before running Step 3. Keep its Test15 rows aligned with the feature and label tables. Step 3 does not generate this historical baseline table.
+
+Supply a flat JSON object with `hidden1`, `hidden2`, `activation`, `dropout`, `optimizer`, `learning_rate`, `weight_decay`, and `epochs`. The example JSON contains the trial-65 parameter values and is read only when passed explicitly.
+
+```bash
+python scripts/03_train_reliability_model.py --params-json data/templates/mlp_manual_parameters.json --check
+python src/reliability_model/03_train_log_mlp_cv5_ensemble.py --params-json data/templates/mlp_manual_parameters.json --check
+```
+
+Alternatively, supply all eight flags:
+
+```bash
+python src/reliability_model/03_train_log_mlp_cv5_ensemble.py \
+  --hidden1 64 --hidden2 32 --activation leaky_relu --dropout 0.15 \
+  --optimizer adam --learning-rate 0.000868422081016009 \
+  --weight-decay 5.8227148141978355e-06 --epochs 500 --check
+```
+
+Use either JSON or flags. Missing, unknown, mixed-source, or invalid parameters cause an error. Outputs go to `results/final/mlp_manual_cv5_ensemble/` and `models/reliability_model/mlp_manual_cv5_ensemble/`. `--run-name` selects a separate name; existing output directories cause an error. `--smoke-test` uses two epochs and separate `_smoke` directories.
+
+Bootstrap and baseline comparisons remain part of Step 3. Each run records the supplied parameters and seed rule; a manual run is not identified as an HPO-selected trial.
+
+## Reliability entry points
+
+| Entry point in `src/reliability_model/` | Purpose |
+|---|---|
+| `01_generate_offline_features.py` | General offline feature preparation and checkpoint utilities |
+| `02_generate_ae_pre_merged_features.py` | Calibration85/Test15 split and feature preparation |
+| `03_train_log_mlp_cv5_ensemble.py` | Manual five-fold MLP ensemble training, evaluation, and baseline comparison |
+
+Shared implementations are in `mlp_core.py`, `reliability_features.py`, and the data/model helpers. Feature metadata uses the compatibility key `final_rf_feature_columns`; feature-validation messages use the tag `[RF]`. Reliability training and prediction use MLP models.
+
+Main-model factories support the encoders, fusion modes, and losses exposed by the training interfaces.
+
+## Reproducibility and release status
+
+- Fold *k* uses deployment rows with `cv_fold != k` for training and `cv_fold == k` for validation.
+- Checkpoint metadata may contain paths from the model’s training environment. Runtime wrappers resolve input files relative to the package.
+- `MANIFEST.sha256` records the supplied files, excluding the manifest itself and generated operating-system/Python metadata.
+- `scripts/05_build_release_package.py` excludes deployment caches and experiment artifacts. Its current required-file check also expects `RELEASE_NOTES.md` and `environment/portable_cpu_commands.txt`, which are absent; the builder needs those files or an updated release configuration before use. Set `--name` to the desired release name; the default archive name refers to v3.
+- Authors must complete the placeholder authorship in `CITATION.cff`, select code/data licenses in `LICENSE`, and confirm redistribution terms for downloaded weights and source data before public release.

@@ -1,16 +1,33 @@
 from __future__ import annotations
 
+
 import math
+
+
 import os
 
+
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+
+
 os.environ.setdefault("MKL_NUM_THREADS", "1")
+
+
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
+
 import numpy as np
+
+
 import pandas as pd
+
+
 import config
+
+
 from data_utils import (
     SOLVENT_REFERENCE_FEATURE_NAMES,
     SOLVENT_SCAFFOLD_FEATURE_NAMES,
@@ -20,21 +37,35 @@ from data_utils import (
     solvent_reference_features,
     standardize_columns,
 )
+
+
 from rank_ensemble_features import (
     FINAL_FEATURE_COLUMNS,
     PROPERTIES,
     add_calibration_scaffold_error_features,
 )
+
+
 EPSILON_BY_PROPERTY = {"abs": 1.0, "emi": 1.0, "em": 0.01, "plqy": 0.005}
+
+
 DROPPED_FEATURE_COLUMNS = [
     "base_prediction_fold_range",
     "calibration_same_scaffold_solvent_count",
     "calibration_same_scaffold_solvent_mean_abs_error",
 ]
+
+
 MODEL_FEATURE_COLUMNS = [
     column for column in FINAL_FEATURE_COLUMNS if column not in DROPPED_FEATURE_COLUMNS
 ]
-SOLVENT_AUGMENTED_MODEL_FEATURE_COLUMNS = MODEL_FEATURE_COLUMNS + list(SOLVENT_REFERENCE_FEATURE_NAMES)
+
+
+SOLVENT_AUGMENTED_MODEL_FEATURE_COLUMNS = MODEL_FEATURE_COLUMNS + list(
+    SOLVENT_REFERENCE_FEATURE_NAMES
+)
+
+
 HISTORICAL_FEATURE_COLUMNS = [
     "calibration_same_scaffold_count",
     "calibration_same_scaffold_mean_abs_error",
@@ -82,9 +113,13 @@ def scaffold_split_spearman(pred_score, true_ae, same_scaffold_count) -> dict[st
     true_ae = np.asarray(true_ae, dtype=float)
     return {
         "n_same_scaffold_count_eq_0": int(zero_mask.sum()),
-        "spearman_same_scaffold_count_eq_0": spearman_manual(pred_score[zero_mask], true_ae[zero_mask]),
+        "spearman_same_scaffold_count_eq_0": spearman_manual(
+            pred_score[zero_mask], true_ae[zero_mask]
+        ),
         "n_same_scaffold_count_ne_0": int(nonzero_mask.sum()),
-        "spearman_same_scaffold_count_ne_0": spearman_manual(pred_score[nonzero_mask], true_ae[nonzero_mask]),
+        "spearman_same_scaffold_count_ne_0": spearman_manual(
+            pred_score[nonzero_mask], true_ae[nonzero_mask]
+        ),
     }
 
 
@@ -96,7 +131,9 @@ def solvent_split_spearman(pred_score, true_ae, solvent_count) -> dict[str, floa
     true_ae = np.asarray(true_ae, dtype=float)
     return {
         "n_solvent_count_eq_0": int(unseen_mask.sum()),
-        "spearman_solvent_count_eq_0": spearman_manual(pred_score[unseen_mask], true_ae[unseen_mask]),
+        "spearman_solvent_count_eq_0": spearman_manual(
+            pred_score[unseen_mask], true_ae[unseen_mask]
+        ),
         "n_solvent_count_ne_0": int(seen_mask.sum()),
         "spearman_solvent_count_ne_0": spearman_manual(pred_score[seen_mask], true_ae[seen_mask]),
     }
@@ -116,11 +153,17 @@ def deployment_evaluation_frame(test_df: pd.DataFrame, predicted_ae) -> pd.DataF
     work["predicted_ae"] = np.asarray(predicted_ae, dtype=float)
     grouped = work.groupby("row_index", sort=False)
     if (grouped["y_true"].nunique(dropna=False) != 1).any():
-        raise ValueError("Test y_true is inconsistent across fold rows for the same row_index/property.")
+        raise ValueError(
+            "Test y_true is inconsistent across fold rows for the same row_index/property."
+        )
     if (grouped["calibration_same_scaffold_count"].nunique(dropna=False) != 1).any():
-        raise ValueError("same_scaffold_count is inconsistent across fold rows for the same row_index/property.")
+        raise ValueError(
+            "same_scaffold_count is inconsistent across fold rows for the same row_index/property."
+        )
     if (grouped["solvent_train_and_val_count"].nunique(dropna=False) != 1).any():
-        raise ValueError("solvent_train_and_val_count is inconsistent across fold rows for the same sample/property.")
+        raise ValueError(
+            "solvent_train_and_val_count is inconsistent across fold rows for the same sample/property."
+        )
     sample = grouped.agg(
         y_true=("y_true", "first"),
         ensemble_prediction=("base_prediction", "mean"),
@@ -221,7 +264,9 @@ def validate_feature_rows(
     required_columns = set(FINAL_FEATURE_COLUMNS) | {"split", "property", "row_index", "fold"}
     missing_columns = sorted(required_columns - set(df.columns))
     if missing_columns:
-        raise ValueError(f"Step 02 {expected_split} features are missing columns: {missing_columns}")
+        raise ValueError(
+            f"Step 02 {expected_split} features are missing columns: {missing_columns}"
+        )
     if df.empty:
         raise ValueError(f"Step 02 {expected_split} features are empty.")
     split_values = set(df["split"].astype(str))
@@ -238,7 +283,9 @@ def validate_feature_rows(
             for column in numeric_columns
             if not np.isfinite(numeric[column].to_numpy(dtype=float)).all()
         ]
-        raise ValueError(f"Step 02 {expected_split} features contain non-finite values: {bad_columns}")
+        raise ValueError(
+            f"Step 02 {expected_split} features contain non-finite values: {bad_columns}"
+        )
     df[numeric_columns] = numeric
     if df.duplicated(["split", "property", "row_index", "fold"]).any():
         raise ValueError(f"Duplicate keys found in Step 02 {expected_split} features.")
@@ -247,18 +294,28 @@ def validate_feature_rows(
         raise ValueError(f"Expected folds 1-5, found: {sorted(set(df['fold'].astype(int)))}")
     group_sizes = df.groupby(["split", "property", "row_index"]).size()
     if not (group_sizes == 5).all():
-        raise ValueError(f"Every split/property/row_index must have 5 fold rows; found {group_sizes.value_counts().to_dict()}")
+        raise ValueError(
+            f"Every split/property/row_index must have 5 fold rows; found {group_sizes.value_counts().to_dict()}"
+        )
     group_keys = ["split", "property", "row_index"]
-    expected_fold_std = df.groupby(group_keys)["base_prediction"].transform(lambda values: values.std(ddof=0))
-    expected_fold_range = df.groupby(group_keys)["base_prediction"].transform("max") - df.groupby(group_keys)[
-        "base_prediction"
-    ].transform("min")
+    expected_fold_std = df.groupby(group_keys)["base_prediction"].transform(
+        lambda values: values.std(ddof=0)
+    )
+    expected_fold_range = df.groupby(group_keys)["base_prediction"].transform("max") - df.groupby(
+        group_keys
+    )["base_prediction"].transform("min")
     if not np.allclose(df["base_prediction_fold_std"], expected_fold_std, rtol=1e-10, atol=1e-12):
-        raise ValueError("base_prediction_fold_std must use ddof=0 and match the 5 fold predictions.")
-    if not np.allclose(df["base_prediction_fold_range"], expected_fold_range, rtol=1e-10, atol=1e-12):
+        raise ValueError(
+            "base_prediction_fold_std must use ddof=0 and match the 5 fold predictions."
+        )
+    if not np.allclose(
+        df["base_prediction_fold_range"], expected_fold_range, rtol=1e-10, atol=1e-12
+    ):
         raise ValueError("base_prediction_fold_range does not match the 5 fold predictions.")
     if (df.groupby(group_keys)["calibration_same_scaffold_count"].nunique(dropna=False) != 1).any():
-        raise ValueError("calibration_same_scaffold_count must be identical across fold rows for each sample/property.")
+        raise ValueError(
+            "calibration_same_scaffold_count must be identical across fold rows for each sample/property."
+        )
     return feature_columns
 
 
@@ -285,12 +342,18 @@ def load_calibration_features(
     if (df.groupby(["property", "row_index"])["y_true"].nunique(dropna=False) != 1).any():
         raise ValueError("Calibration y_true is inconsistent across fold rows.")
 
-    expected_abs_error = np.abs(df["base_prediction"].to_numpy(dtype=float) - df["y_true"].to_numpy(dtype=float))
-    if not np.allclose(df["abs_error"].to_numpy(dtype=float), expected_abs_error, rtol=1e-10, atol=1e-12):
+    expected_abs_error = np.abs(
+        df["base_prediction"].to_numpy(dtype=float) - df["y_true"].to_numpy(dtype=float)
+    )
+    if not np.allclose(
+        df["abs_error"].to_numpy(dtype=float), expected_abs_error, rtol=1e-10, atol=1e-12
+    ):
         raise ValueError("abs_error does not equal abs(y_pred - y_true).")
     for prop in PROPERTIES:
         prop_mask = df["property"] == prop
-        expected_log_error = np.log(df.loc[prop_mask, "abs_error"].to_numpy(dtype=float) + EPSILON_BY_PROPERTY[prop])
+        expected_log_error = np.log(
+            df.loc[prop_mask, "abs_error"].to_numpy(dtype=float) + EPSILON_BY_PROPERTY[prop]
+        )
         if not np.allclose(
             df.loc[prop_mask, "log_abs_error"].to_numpy(dtype=float),
             expected_log_error,
@@ -300,7 +363,7 @@ def load_calibration_features(
             raise ValueError(f"log_abs_error is inconsistent with abs_error for property={prop}.")
 
     print(
-        f"[Reliability] using selected {len(feature_columns)}-feature scheme; dropped={DROPPED_FEATURE_COLUMNS}",
+        f"[RF] using selected {len(feature_columns)}-feature scheme; dropped={DROPPED_FEATURE_COLUMNS}",
         flush=True,
     )
     return df, feature_columns
@@ -309,7 +372,16 @@ def load_calibration_features(
 def load_test_features(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     validate_feature_rows(df, expected_split="test")
-    forbidden = {"y_true", "y_pred", "ae", "true_ae", "abs_error", "log_abs_error", "sample_weight", "epsilon"}
+    forbidden = {
+        "y_true",
+        "y_pred",
+        "ae",
+        "true_ae",
+        "abs_error",
+        "log_abs_error",
+        "sample_weight",
+        "epsilon",
+    }
     present = sorted(forbidden & set(df.columns))
     if present:
         raise ValueError(f"Sealed Test feature file contains label columns: {present}")
@@ -324,7 +396,9 @@ def load_test_labels(path: str) -> pd.DataFrame:
         raise ValueError(f"Test label file is missing columns: {missing}")
     if set(labels["property"].astype(str)) != set(PROPERTIES):
         raise ValueError("Test label file does not contain exactly the expected properties.")
-    labels[["row_index", "y_true"]] = labels[["row_index", "y_true"]].apply(pd.to_numeric, errors="coerce")
+    labels[["row_index", "y_true"]] = labels[["row_index", "y_true"]].apply(
+        pd.to_numeric, errors="coerce"
+    )
     if not np.isfinite(labels[["row_index", "y_true"]].to_numpy(dtype=float)).all():
         raise ValueError("Test labels contain non-finite values.")
     if labels.duplicated(["property", "row_index"]).any():
@@ -348,7 +422,9 @@ def aggregate_base_predictions(df: pd.DataFrame, *, include_targets: bool) -> pd
         "base_prediction_fold_range",
         *HISTORICAL_FEATURE_COLUMNS,
     }
-    constant_features = [column for column in FINAL_FEATURE_COLUMNS if column not in rebuilt_columns]
+    constant_features = [
+        column for column in FINAL_FEATURE_COLUMNS if column not in rebuilt_columns
+    ]
     constant_columns = ["split", "smiles", "solvent", *constant_features]
     if include_targets:
         constant_columns.append("y_true")
@@ -445,5 +521,3 @@ def add_solvent_reference_feature_columns(
         "test_unseen_solvent_rows": int((test["solvent_train_and_val_count"] == 0).sum()),
     }
     return calibration, test, summary
-
-

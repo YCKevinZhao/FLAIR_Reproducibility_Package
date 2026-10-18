@@ -12,7 +12,9 @@ DEFAULT_SPLIT_DIR = "../../data/splits/deployment"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Validate generated external-test + 5-fold split CSV files.")
+    parser = argparse.ArgumentParser(
+        description="Validate generated external-test + 5-fold split CSV files."
+    )
     parser.add_argument("--split_dir", default=DEFAULT_SPLIT_DIR)
     parser.add_argument("--n_folds", type=int, default=5)
     return parser.parse_args()
@@ -33,7 +35,11 @@ def check_no_overlap(name_a: str, ids_a: set[int], name_b: str, ids_b: set[int])
 def main() -> None:
     args = parse_args()
     raw_split_dir = Path(args.split_dir).expanduser()
-    split_dir = raw_split_dir.resolve() if raw_split_dir.is_absolute() else (SCRIPT_DIR / raw_split_dir).resolve()
+    split_dir = (
+        raw_split_dir.resolve()
+        if raw_split_dir.is_absolute()
+        else (SCRIPT_DIR / raw_split_dir).resolve()
+    )
 
     deployment_test = pd.read_csv(split_dir / "deployment_test.csv")
     deployment = pd.read_csv(split_dir / "deployment.csv")
@@ -43,7 +49,9 @@ def main() -> None:
     expected_folds = set(range(1, args.n_folds + 1))
     actual_folds = set(fold_values.tolist())
     if actual_folds != expected_folds:
-        raise ValueError(f"Expected cv_fold values {sorted(expected_folds)}, found {sorted(actual_folds)}.")
+        raise ValueError(
+            f"Expected cv_fold values {sorted(expected_folds)}, found {sorted(actual_folds)}."
+        )
     deployment_test_ids = row_id_set(deployment_test)
     deployment_ids = row_id_set(deployment)
     check_no_overlap("Deployment_Test", deployment_test_ids, "Deployment", deployment_ids)

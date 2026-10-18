@@ -1,23 +1,30 @@
+Package contents: source data, main-model splits, code, and seven default weight files are included. Generated results and caches are omitted.
+
 Validation commands (run from the package root):
+Step 1/2 checks can run on the supplied files. Prediction requires Step 2 calibration features.
+Step 3 additionally require test features, test labels, and historical comparison rows from Colab.
+A failed prerequisite check before these inputs exist is expected.
 
-/opt/anaconda3/envs/Pytorch/bin/python3.10 src/data_splitting/check_generated_splits.py
-/opt/anaconda3/envs/Pytorch/bin/python3.10 scripts/01_train_main_model.py --check
-/opt/anaconda3/envs/Pytorch/bin/python3.10 scripts/02_extract_reliability_features.py --check
-/opt/anaconda3/envs/Pytorch/bin/python3.10 scripts/03_train_reliability_model.py --check
-/opt/anaconda3/envs/Pytorch/bin/python3.10 scripts/04_predict_single.py --check
-/opt/anaconda3/envs/Pytorch/bin/python3.10 src/reliability_model/log_mlp_reliability.py models/reliability_model/mlp_log_hpo100_reliability_model_bundle.pt
-/opt/anaconda3/envs/Pytorch/bin/python3.10 scripts/04_predict_single.py --smiles "CCO" --solvent "O" --json
+python src/data_splitting/check_generated_splits.py
+python scripts/01_train_main_model.py --check
+python scripts/02_extract_reliability_features.py --check
+python scripts/03_train_reliability_model.py --params-json data/templates/mlp_manual_parameters.json --check
+python scripts/04_predict_single.py --check
+python src/reliability_model/03_train_log_mlp_cv5_ensemble.py --params-json data/templates/mlp_manual_parameters.json --check
 
-Authoritative v3 Reliability records:
-
+Historical default reliability result (not distributed):
 results/final/mlp_log_hpo100_20260824/validation.json
-results/final/mlp_log_hpo100_20260824/test15_by_property.csv
-results/hpo/mlp_log_hpo100_20260824/best_params.json
-models/reliability_model/mlp_log_hpo100_reliability_model_bundle.pt
+checkpoint = models/reliability_model/mlp_log_hpo100_reliability_model_bundle.pt
+best_trial_id = 65
+weighted_test15_spearman = 0.6589980233120313
+weighted_test15_ae_mae = 10.046811636040012
 
-Expected model family: mlp_log_hpo100
-Expected selected trial: 65
-Expected feature count: 32
-Expected weighted validation Spearman: 0.6310563284911787
-Expected weighted Test15 Spearman: 0.6589980233120313
-Expected weighted Test15 AE MAE: 10.046811636040012
+Checks validate inputs and entry points; they do not rerun full training or HPO.
+
+Shared feature processing is in src/reliability_model/reliability_features.py.
+
+Numbered Reliability entry points: 01, 02, and 03.
+scripts/03_train_reliability_model.py forwards manual parameters to src/reliability_model/03_train_log_mlp_cv5_ensemble.py.
+No implicit HPO selection or full 500-epoch retraining is performed by --check.
+
+Release builder prerequisites currently absent: RELEASE_NOTES.md and environment/portable_cpu_commands.txt.

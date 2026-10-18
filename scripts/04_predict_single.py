@@ -3,9 +3,8 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
+import sys
 from pathlib import Path
-
-from _runtime import pytorch_python
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -14,8 +13,52 @@ PREDICT_SCRIPT = AE_DIR / "predict_single_with_ae.py"
 MAIN_MODEL_ROOT = ROOT / "src" / "main_model"
 BEST_DIR = ROOT / "models" / "main_model"
 AE_MODEL = ROOT / "models" / "reliability_model" / "mlp_log_hpo100_reliability_model_bundle.pt"
-DEPLOY_CACHE = ROOT / "models" / "reliability_model" / "prediction_deploy_cache_solvent32.pkl"
+DEPLOY_CACHE = ROOT / "data" / "cache" / "prediction_deploy_cache_solvent32.pkl"
 OFFLINE_FEATURE_CSV = ROOT / "results" / "intermediate" / "calibration_features_ae_pre.csv"
+
+
+def prediction_python() -> Path:
+    # Prefer the interpreter used to launch this wrapper.  This makes the
+    # release portable across arbitrary Conda environment names (for example
+    # Pytorch, MORE, or FLAIR) instead of requiring a workstation-specific
+    # environment name.
+    candidates = [Path(sys.executable)]
+
+    conda_exe = os.environ.get("CONDA_EXE")
+    if conda_exe:
+        envs_root = Path(conda_exe).resolve().parents[1] / "envs"
+        candidates.extend(
+            envs_root / name / "bin" / "python" for name in ("Pytorch", "MORE", "FLAIR")
+        )
+
+    for conda_root in (
+        Path("/opt/anaconda3"),
+        Path.home() / "anaconda3",
+        Path.home() / "miniconda3",
+        Path.home() / "miniforge3",
+    ):
+        candidates.extend(
+            conda_root / "envs" / name / "bin" / "python" for name in ("Pytorch", "MORE", "FLAIR")
+        )
+    checked: set[Path] = set()
+    for candidate in candidates:
+        candidate = candidate.resolve()
+        if candidate in checked or not candidate.exists():
+            continue
+        checked.add(candidate)
+        probe = subprocess.run(
+            [str(candidate), "-c", "import torch, torch_geometric, torch_scatter, rdkit, sklearn"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if probe.returncode == 0:
+            return candidate
+    raise RuntimeError(
+        "No compatible Python environment was found. Activate the environment described in "
+        "environment/portable_cpu_commands.txt and ensure torch, torch_geometric, torch_scatter, "
+        "rdkit, and sklearn can be imported."
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,12 +68,28 @@ def parse_args() -> argparse.Namespace:
             "numeric pre_AE error estimate for each property."
         )
     )
-    parser.add_argument("--smiles", default=None, help="Solute SMILES. If omitted, the inner script asks interactively.")
-    parser.add_argument("--solvent", default=None, help="Solvent SMILES. If omitted, the inner script asks interactively.")
-    parser.add_argument("--build_cache_only", action="store_true", help="Build deployment cache and exit.")
-    parser.add_argument("--rebuild_cache", action="store_true", help="Rebuild deployment cache even if it already exists.")
+    parser.add_argument(
+        "--smiles",
+        default=None,
+        help="Solute SMILES. If omitted, the inner script asks interactively.",
+    )
+    parser.add_argument(
+        "--solvent",
+        default=None,
+        help="Solvent SMILES. If omitted, the inner script asks interactively.",
+    )
+    parser.add_argument(
+        "--build_cache_only", action="store_true", help="Build deployment cache and exit."
+    )
+    parser.add_argument(
+        "--rebuild_cache",
+        action="store_true",
+        help="Rebuild deployment cache even if it already exists.",
+    )
     parser.add_argument("--json", action="store_true", help="Print compact JSON only.")
-    parser.add_argument("--check", action="store_true", help="Only check required files and print the command.")
+    parser.add_argument(
+        "--check", action="store_true", help="Only check required files and print the command."
+    )
     return parser.parse_args()
 
 
@@ -51,7 +110,7 @@ def required_files(build_cache_only: bool) -> list[Path]:
 
 def main() -> None:
     args = parse_args()
-    runtime_python = pytorch_python()
+    runtime_python = prediction_python()
     missing = [path for path in required_files(args.build_cache_only) if not path.exists()]
     if missing:
         raise FileNotFoundError(

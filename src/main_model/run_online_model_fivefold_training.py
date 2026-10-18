@@ -76,7 +76,9 @@ RUNS_BY_SPLIT["ae"] = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train the deployment 5-fold DL main models.")
-    parser.add_argument("--single_run", type=int, default=None, help="Run only one fold, e.g. --single_run 1.")
+    parser.add_argument(
+        "--single_run", type=int, default=None, help="Run only one fold, e.g. --single_run 1."
+    )
     parser.add_argument("--split", choices=["ae"], default="ae", help=argparse.SUPPRESS)
     return parser.parse_args()
 

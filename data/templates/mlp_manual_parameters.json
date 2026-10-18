@@ -1,0 +1,10 @@
+{
+  "hidden1": 64,
+  "hidden2": 32,
+  "activation": "leaky_relu",
+  "dropout": 0.15,
+  "optimizer": "adam",
+  "learning_rate": 0.000868422081016009,
+  "weight_decay": 5.8227148141978355e-06,
+  "epochs": 500
+}

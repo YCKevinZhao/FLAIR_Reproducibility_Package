@@ -34,7 +34,9 @@ class GraphTransformerOnlineMOREAdapterOnlyEncoder(nn.Module):
         more_vec = self.more_encoder(data)
 
         if more_vec.device != graph_vec.device or more_vec.dtype != graph_vec.dtype:
-            more_vec = more_vec.to(device=graph_vec.device, dtype=graph_vec.dtype, non_blocking=True)
+            more_vec = more_vec.to(
+                device=graph_vec.device, dtype=graph_vec.dtype, non_blocking=True
+            )
 
         adapter_vec = self.more_adapter(more_vec)
         if return_node_embeddings:
@@ -100,8 +102,6 @@ def _patch_more_only_encoder_if_needed(solute_encoder_type: str) -> None:
 
 BASE_CONFIG = {
     "output_root": "HPO_frozenMORE_base",
-
-    
     "more_weight_path": "../../models/pretrained/MORE.pth",
     "more_num_layer": 5,
     "more_emb_dim": 300,
@@ -111,9 +111,7 @@ BASE_CONFIG = {
     "more_pooling": "mean",
     "more_frozen": True,
     "more_unfrozen_layers": 0,
-
     "solute_encoder_type": "graph_transformer_more_online_ln_adapter_gt_concat",
-
     "seed": 42,
     "batch_size": 256,
     "epochs": 2000,
@@ -121,18 +119,13 @@ BASE_CONFIG = {
     "lr": 1e-3,
     "weight_decay": 1e-4,
     "early_stopping_patience": 30,
-
-    
     "l2sp_enabled": False,
     "l2sp_lambda": 0.0,
     "l2sp_modules": ("mol_encoder.more_encoder",),
     "l2sp_exclude_bias_norm": True,
-
     "num_workers": 4,
     "cache_graphs": True,
     "drop_invalid_solvent_in_graph": True,
-
-    
     "graph_transformer_hidden": 128,
     "graph_transformer_layers": 3,
     "graph_transformer_out": 128,
@@ -146,14 +139,10 @@ BASE_CONFIG = {
     "graph_transformer_readout_layers": 1,
     "graph_transformer_readout_ffn_dim": None,
     "graph_transformer_readout_dropout": None,
-
-    
     "solvent_mode": "morgan",
     "morgan_radius": 4,
     "morgan_n_bits": 256,
     "morgan_use_chirality": False,
-
-    
     "solvent_graph_encoder_type": "transformer",
     "solvent_graph_transformer_hidden": 128,
     "solvent_graph_transformer_layers": 3,
@@ -163,8 +152,6 @@ BASE_CONFIG = {
     "solvent_graph_transformer_dropout": 0.1,
     "solvent_graph_transformer_use_edge_attr": True,
     "solvent_graph_transformer_beta": False,
-
-    
     "fusion_type": "self_attention",
     "fusion_attention_dim": 128,
     "fusion_attention_heads": 4,
@@ -172,8 +159,6 @@ BASE_CONFIG = {
     "fusion_attention_ffn_dim": None,
     "fusion_attention_dropout": 0.1,
     "fusion_output_mode": "cls",
-
-    
     "mlp_hidden": 256,
     "mlp_layers": 3,
     "mlp_dropout": 0.2,
@@ -219,10 +204,7 @@ def _check_required_files(run_cfg: dict, cfg: dict) -> None:
     ]
     missing = [p for p in required_files if not Path(p).exists()]
     if missing:
-        raise FileNotFoundError(
-            "，：\n"
-            + "\n".join([f"  - {p}" for p in missing])
-        )
+        raise FileNotFoundError("，：\n" + "\n".join([f"  - {p}" for p in missing]))
 
 
 def _make_run_config(cfg: dict, run_idx: int) -> RunConfig:
@@ -318,7 +300,9 @@ def run_one(variant_config: dict, split: str, run_idx: int) -> None:
     print(f"val_csv                = {run_cfg['val_csv']}")
     print(f"test_csv               = {run_cfg['test_csv']}")
     print(f"solute_encoder         = {cfg['solute_encoder_type']}")
-    print(f"MORE frozen            = {cfg['more_frozen']} | unfrozen_layers={cfg['more_unfrozen_layers']}")
+    print(
+        f"MORE frozen            = {cfg['more_frozen']} | unfrozen_layers={cfg['more_unfrozen_layers']}"
+    )
     print(f"L2SP enabled           = {cfg['l2sp_enabled']}")
     print(
         "solute GT              = "
@@ -366,9 +350,6 @@ def run_all_in_independent_processes(script_path: Path, split: str) -> None:
 
         return_code = proc.wait()
         if return_code != 0:
-            raise RuntimeError(
-                f"{item['label']} ，return_code={return_code}。"
-                " run ， run 。"
-            )
+            raise RuntimeError(f"{item['label']} ，return_code={return_code}。" " run ， run 。")
 
         print(f"[Launcher] finished {item['label']}")

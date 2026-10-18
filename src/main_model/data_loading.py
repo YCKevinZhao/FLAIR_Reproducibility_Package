@@ -16,8 +16,8 @@ from solvent_encoders import CGSDTable, canonicalize_smiles, encode_and_concat_s
 
 TARGET_COLS = ["abs", "emi", "plqy", "em"]
 SMILES_COL = "smiles"
-SOLVENT_COL = "solvent"              
-SOLVENT_RAW_COL = "solvent_raw"      
+SOLVENT_COL = "solvent"
+SOLVENT_RAW_COL = "solvent_raw"
 SAMPLE_ID_COL = "sample_id"
 RAW_ROW_ID_COL = "raw_row_id"
 MANIFEST_REQUIRED_COLS = [
@@ -29,10 +29,7 @@ MANIFEST_REQUIRED_COLS = [
 ] + TARGET_COLS
 
 
-
-
-
-ATOM_TYPES = [1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53]  
+ATOM_TYPES = [1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53]
 ATOM_DEGREES = [0, 1, 2, 3, 4, 5]
 FORMAL_CHARGES = [-2, -1, 0, 1, 2]
 HYBRIDIZATION_TYPES = [
@@ -143,12 +140,6 @@ def smiles_to_graph(smiles: Optional[str]) -> Tuple[torch.Tensor, torch.Tensor, 
         edge_attr = torch.empty((0, BOND_FDIM), dtype=torch.float32)
 
     return x, edge_index, edge_attr
-
-
-
-
-
-
 
 
 MORE_ALLOWABLE_FEATURES = {
@@ -271,7 +262,9 @@ def smiles_to_more_graph(smiles: Optional[str]) -> Tuple[torch.Tensor, torch.Ten
     return x, edge_index, edge_attr
 
 
-def _build_more_graph_cache(smiles_series: pd.Series) -> Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+def _build_more_graph_cache(
+    smiles_series: pd.Series,
+) -> Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     cache: Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = {}
     uniq_smiles: list[Optional[str]] = []
     seen = set()
@@ -284,9 +277,6 @@ def _build_more_graph_cache(smiles_series: pd.Series) -> Dict[Optional[str], Tup
     for smi in uniq_smiles:
         cache[smi] = smiles_to_more_graph(smi)
     return cache
-
-
-
 
 
 def _is_missing_value(value) -> bool:
@@ -355,7 +345,9 @@ def _clone_graph_tuple(
     return graph_tuple
 
 
-def _build_graph_cache(smiles_series: pd.Series) -> Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+def _build_graph_cache(
+    smiles_series: pd.Series,
+) -> Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     cache: Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = {}
     uniq_smiles: list[Optional[str]] = []
     seen = set()
@@ -471,9 +463,6 @@ def _resolve_cgsd_table(
     return None
 
 
-
-
-
 def compute_target_stats(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
     values = df[TARGET_COLS].to_numpy(dtype=np.float32)
     mean = np.nanmean(values, axis=0).astype(np.float32)
@@ -484,15 +473,14 @@ def compute_target_stats(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
     return mean, std
 
 
-def standardize_targets(y_np: np.ndarray, mask_np: np.ndarray, mean: np.ndarray, std: np.ndarray) -> np.ndarray:
+def standardize_targets(
+    y_np: np.ndarray, mask_np: np.ndarray, mean: np.ndarray, std: np.ndarray
+) -> np.ndarray:
     out = y_np.astype(np.float32, copy=True)
     valid = mask_np.astype(bool)
     if valid.any():
         out[valid] = (out[valid] - mean[valid]) / std[valid]
     return out
-
-
-
 
 
 def build_manifest_df(
@@ -509,7 +497,9 @@ def build_manifest_df(
         fold = int(cv_fold)
         role = str(fold_role or "").strip().lower()
         if "cv_fold" not in df.columns:
-            raise ValueError(f"CSV {csv_path} is missing the cv_fold column required for fold selection.")
+            raise ValueError(
+                f"CSV {csv_path} is missing the cv_fold column required for fold selection."
+            )
         if role not in {"train", "valid", "validation"}:
             raise ValueError(f"fold_role must be 'train' or 'valid', got {fold_role!r}.")
         fold_values = pd.to_numeric(df["cv_fold"], errors="raise").astype(int)
@@ -593,7 +583,8 @@ def build_manifest_df(
         + (
             f" |  {invalid_smiles_stats['solvent_skipped_rows']}  "
             f"( {invalid_smiles_stats['solvent_invalid_count']} /  {invalid_smiles_stats['solvent_missing_count']})"
-            if solvent_smiles_required else " |  SMILES "
+            if solvent_smiles_required
+            else " |  SMILES "
         )
         + f" |  {invalid_smiles_stats['kept_rows']}/{invalid_smiles_stats['total_rows_before']} "
     )
@@ -643,10 +634,7 @@ def build_split_from_manifest(
     train_idx = perm[n_val:]
 
     if len(train_idx) == 0 or len(val_idx) == 0:
-        raise ValueError(
-            f"：train={len(train_idx)}, val={len(val_idx)}；"
-            " val_ratio "
-        )
+        raise ValueError(f"：train={len(train_idx)}, val={len(val_idx)}；" " val_ratio ")
 
     sample_ids = manifest_df[SAMPLE_ID_COL].to_numpy(dtype=np.int64)
     train_sample_ids = sample_ids[train_idx]
@@ -777,7 +765,9 @@ class FluorSolventDataset(Dataset):
             target_mean, target_std = compute_target_stats(self.df)
         self.target_mean = np.asarray(target_mean, dtype=np.float32)
         self.target_std = np.asarray(target_std, dtype=np.float32)
-        if self.target_mean.shape != (len(TARGET_COLS),) or self.target_std.shape != (len(TARGET_COLS),):
+        if self.target_mean.shape != (len(TARGET_COLS),) or self.target_std.shape != (
+            len(TARGET_COLS),
+        ):
             raise ValueError("target_mean / target_std  (4,)")
 
         self.cgsd_table = _resolve_cgsd_table(cgsd_table=cgsd_table, cgsd_csv_path=cgsd_csv_path)
@@ -788,10 +778,18 @@ class FluorSolventDataset(Dataset):
         if "cgsd" in self.solvent_blocks and self.cgsd_table is None:
             raise ValueError("solvent_mode  'cgsd' ， cgsd_table  cgsd_csv_path")
 
-        self.mol_graph_cache: Optional[Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]] = None
-        self.more_graph_cache: Optional[Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]] = None
-        self.solvent_graph_cache: Optional[Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]] = None
-        self.solvent_feature_cache: Optional[Dict[tuple[Optional[str], Optional[str]], torch.Tensor]] = None
+        self.mol_graph_cache: Optional[
+            Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+        ] = None
+        self.more_graph_cache: Optional[
+            Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+        ] = None
+        self.solvent_graph_cache: Optional[
+            Dict[Optional[str], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+        ] = None
+        self.solvent_feature_cache: Optional[
+            Dict[tuple[Optional[str], Optional[str]], torch.Tensor]
+        ] = None
 
         if self.cache_graphs:
             self.mol_graph_cache = _build_graph_cache(self.df[SMILES_COL])
@@ -807,12 +805,16 @@ class FluorSolventDataset(Dataset):
                 cgsd_kwargs=self.cgsd_kwargs,
             )
             if len(self.solvent_feature_cache) > 0:
-                self.solvent_feature_dim = int(next(iter(self.solvent_feature_cache.values())).numel())
+                self.solvent_feature_dim = int(
+                    next(iter(self.solvent_feature_cache.values())).numel()
+                )
 
     def __len__(self) -> int:
         return len(self.df)
 
-    def _get_mol_graph(self, mol_smiles: Optional[str]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _get_mol_graph(
+        self, mol_smiles: Optional[str]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mol_smiles = _sanitize_smiles_value(mol_smiles)
         if self.mol_graph_cache is None:
             return smiles_to_graph(mol_smiles)
@@ -822,7 +824,9 @@ class FluorSolventDataset(Dataset):
             self.mol_graph_cache[mol_smiles] = graph
         return _clone_graph_tuple(graph)
 
-    def _get_more_graph(self, mol_smiles: Optional[str]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _get_more_graph(
+        self, mol_smiles: Optional[str]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mol_smiles = _sanitize_smiles_value(mol_smiles)
         if self.more_graph_cache is None:
             return smiles_to_more_graph(mol_smiles)
@@ -832,7 +836,9 @@ class FluorSolventDataset(Dataset):
             self.more_graph_cache[mol_smiles] = graph
         return _clone_graph_tuple(graph)
 
-    def _get_solvent_features(self, sol_smiles: Optional[str], sol_raw: Optional[str]) -> torch.Tensor:
+    def _get_solvent_features(
+        self, sol_smiles: Optional[str], sol_raw: Optional[str]
+    ) -> torch.Tensor:
         key = (_sanitize_smiles_value(sol_smiles), _sanitize_text_value(sol_raw))
         if self.solvent_feature_cache is None:
             feat = encode_and_concat_solvent_features(
@@ -934,8 +940,7 @@ def _subset_indices_from_sample_ids(dataset_df: pd.DataFrame, sample_ids: np.nda
     if missing_ids:
         preview = missing_ids[:10]
         raise ValueError(
-            f"split  {len(missing_ids)}  sample_id  dataset ，"
-            f": {preview}。 manifest  split 。"
+            f"split  {len(missing_ids)}  sample_id  dataset ，" f": {preview}。 manifest  split 。"
         )
     return subset_idx
 
@@ -1032,10 +1037,7 @@ def make_loaders(
         train_idx = perm[n_val:]
 
     if len(train_idx) == 0 or len(val_idx) == 0:
-        raise ValueError(
-            f"：train={len(train_idx)}, val={len(val_idx)}；"
-            " val_ratio "
-        )
+        raise ValueError(f"：train={len(train_idx)}, val={len(val_idx)}；" " val_ratio ")
 
     train_df = manifest_df.iloc[train_idx].reset_index(drop=True)
     val_df = manifest_df.iloc[val_idx].reset_index(drop=True)
